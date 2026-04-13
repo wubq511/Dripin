@@ -1,10 +1,7 @@
-@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")
-
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.kapt")
+    id("com.android.legacy-kapt")
     id("com.google.dagger.hilt.android")
 }
 
@@ -29,10 +26,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 }
 
 dependencies {
@@ -55,5 +48,5 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.59.2")
     kapt("com.google.dagger:hilt-compiler:2.59.2")
 
-    testImplementation(libs.kotlin.test)
+    testImplementation("junit:junit:4.13.2")
 }
