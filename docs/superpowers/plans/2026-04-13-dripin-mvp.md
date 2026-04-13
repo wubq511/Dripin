@@ -585,7 +585,7 @@ object TopicClassifier {
 @RunWith(AndroidJUnit4::class)
 class AppDatabaseTest {
     @Test
-    fun canonical_url_is_unique() = runTest {
+    fun canonical_url_is_unique() = runBlocking {
         val db = buildInMemoryDb()
         val dao = db.savedItemDao()
         val item = SavedItemEntity(
@@ -611,7 +611,13 @@ class AppDatabaseTest {
             lastRecommendedDate = null,
         )
         dao.insert(item)
-        assertFailsWith<SQLiteConstraintException> { dao.insert(item.copy(id = 0, title = "Two")) }
+        var threwConstraint = false
+        try {
+            dao.insert(item.copy(id = 0, title = "Two"))
+        } catch (_: SQLiteConstraintException) {
+            threwConstraint = true
+        }
+        assertTrue(threwConstraint)
     }
 }
 ```
@@ -670,12 +676,17 @@ interface SavedItemDao {
 The repository should expose:
 
 ```kotlin
-suspend fun upsertSharedLink(
-    payload: IncomingSharePayload,
-    title: String?,
-    note: String?,
-    tags: List<String>,
-): SaveResult
+data class LinkSaveRequest(
+    val rawUrl: String,
+    val title: String? = null,
+    val textContent: String? = null,
+    val note: String? = null,
+    val sourceAppPackage: String? = null,
+    val sourceAppLabel: String? = null,
+    val tags: List<String> = emptyList(),
+)
+
+suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult
 suspend fun saveText(
     text: String,
     title: String?,
