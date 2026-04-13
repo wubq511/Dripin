@@ -1,0 +1,69 @@
+package com.dripin.app.feature.capture
+
+import androidx.lifecycle.SavedStateHandle
+import com.dripin.app.core.common.SourcePlatformClassifier
+import com.dripin.app.core.common.TopicClassifier
+import com.dripin.app.core.model.ContentType
+import com.dripin.app.data.metadata.LinkMetadata
+import com.dripin.app.data.metadata.LinkMetadataReader
+import com.dripin.app.data.repository.LinkSaveRequest
+import com.dripin.app.data.repository.SaveResult
+import com.dripin.app.data.repository.SavedItemStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class SaveItemViewModelTest {
+    @Test
+    fun link_without_title_fetches_metadata_and_keeps_manual_override() = runBlocking {
+        val metadataFetcher = LinkMetadataReader {
+            delay(50)
+            LinkMetadata(title = "Fetched Title")
+        }
+        val viewModel = SaveItemViewModel(
+            initialPayload = IncomingSharePayload(
+                contentType = ContentType.LINK,
+                sharedUrl = "https://github.com/openai/openai",
+                sourceAppPackage = "com.github.android",
+                sourceAppLabel = "GitHub",
+            ),
+            metadataFetcher = metadataFetcher,
+            repository = FakeSavedItemStore(),
+            sourcePlatformClassifier = SourcePlatformClassifier,
+            topicClassifier = TopicClassifier,
+            savedStateHandle = SavedStateHandle(),
+            workerDispatcher = Dispatchers.Unconfined,
+        )
+
+        viewModel.onTitleChanged("Manual Title")
+        delay(100)
+
+        assertEquals("Manual Title", viewModel.uiState.value.title)
+        assertEquals("GitHub", viewModel.uiState.value.sourcePlatform)
+    }
+
+    private class FakeSavedItemStore : SavedItemStore {
+        override suspend fun findExistingLinkId(rawUrl: String): Long? = null
+
+        override suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult =
+            SaveResult.Created(itemId = 1L)
+
+        override suspend fun saveText(
+            text: String,
+            title: String?,
+            note: String?,
+            sourceAppPackage: String?,
+            tags: List<String>,
+        ): Long = 2L
+
+        override suspend fun saveImage(
+            imageUri: String,
+            title: String?,
+            note: String?,
+            sourceAppPackage: String?,
+            tags: List<String>,
+        ): Long = 3L
+    }
+}

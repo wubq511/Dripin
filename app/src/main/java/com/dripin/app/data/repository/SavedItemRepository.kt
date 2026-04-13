@@ -30,12 +30,39 @@ sealed interface SaveResult {
     data class UpdatedExisting(val itemId: Long) : SaveResult
 }
 
+interface SavedItemStore {
+    suspend fun findExistingLinkId(rawUrl: String): Long?
+
+    suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult
+
+    suspend fun saveText(
+        text: String,
+        title: String?,
+        note: String?,
+        sourceAppPackage: String?,
+        tags: List<String>,
+    ): Long
+
+    suspend fun saveImage(
+        imageUri: String,
+        title: String?,
+        note: String?,
+        sourceAppPackage: String?,
+        tags: List<String>,
+    ): Long
+}
+
 class SavedItemRepository(
     private val savedItemDao: SavedItemDao,
     private val tagDao: TagDao,
     private val clock: Clock = Clock.systemUTC(),
-) {
-    suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult {
+) : SavedItemStore {
+    override suspend fun findExistingLinkId(rawUrl: String): Long? {
+        val canonicalUrl = UrlCanonicalizer.canonicalize(rawUrl)
+        return savedItemDao.findByCanonicalUrl(canonicalUrl)?.id
+    }
+
+    override suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult {
         val canonicalUrl = UrlCanonicalizer.canonicalize(request.rawUrl)
         val sourceDomain = canonicalUrl.toHttpUrlOrNull()?.host
         val sourcePlatform = SourcePlatformClassifier.classify(
@@ -112,7 +139,7 @@ class SavedItemRepository(
         }
     }
 
-    suspend fun saveText(
+    override suspend fun saveText(
         text: String,
         title: String?,
         note: String?,
@@ -128,7 +155,7 @@ class SavedItemRepository(
         tags = tags,
     )
 
-    suspend fun saveImage(
+    override suspend fun saveImage(
         imageUri: String,
         title: String?,
         note: String?,

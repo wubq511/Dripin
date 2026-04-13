@@ -734,7 +734,7 @@ git commit -m "feat: add persistence, url canonicalization, and classifiers"
 - Create: `app/src/main/java/com/dripin/app/feature/capture/SaveItemViewModel.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/capture/SaveItemScreen.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/capture/ShareReceiverActivity.kt`
-- Test: `app/src/test/java/com/dripin/app/feature/capture/ShareIntentParserTest.kt`
+- Test: `app/src/androidTest/java/com/dripin/app/feature/capture/ShareIntentParserTest.kt`
 - Test: `app/src/test/java/com/dripin/app/feature/capture/SaveItemViewModelTest.kt`
 
 - [ ] **Step 1: Write failing share-intent parsing tests**
@@ -771,7 +771,7 @@ class ShareIntentParserTest {
 Run:
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest --tests "com.dripin.app.feature.capture.ShareIntentParserTest"
+.\gradlew.bat :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.feature.capture.ShareIntentParserTest"
 ```
 
 Expected: FAIL.
@@ -903,7 +903,8 @@ The screen must render:
 Run:
 
 ```powershell
-.\gradlew.bat :app:testDebugUnitTest --tests "com.dripin.app.feature.capture.*"
+.\gradlew.bat :app:testDebugUnitTest --tests "com.dripin.app.feature.capture.SaveItemViewModelTest"
+.\gradlew.bat :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.feature.capture.ShareIntentParserTest"
 ```
 
 Expected: PASS.
