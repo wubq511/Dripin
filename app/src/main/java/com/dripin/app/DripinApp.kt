@@ -1,17 +1,15 @@
 package com.dripin.app
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import com.dripin.app.core.designsystem.theme.DripinTheme
+import com.dripin.app.navigation.DripinNavGraph
 
 @Composable
 fun DripinApp() {
-    MaterialTheme {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Text(text = "Dripin bootstrap")
+    DripinTheme {
+        Surface {
+            DripinNavGraph()
         }
     }
 }
