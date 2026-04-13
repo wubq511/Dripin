@@ -12,6 +12,7 @@ import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.local.entity.TagEntity
 import java.time.Clock
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class LinkSaveRequest(
@@ -31,6 +32,28 @@ sealed interface SaveResult {
 }
 
 interface SavedItemStore {
+    fun observeItems(): Flow<List<SavedItemEntity>>
+
+    suspend fun getItem(itemId: Long): SavedItemEntity?
+
+    suspend fun getTags(itemId: Long): List<String>
+
+    suspend fun setReadState(
+        itemId: Long,
+        isRead: Boolean,
+    )
+
+    suspend fun updateItemContent(
+        itemId: Long,
+        title: String?,
+        note: String?,
+    )
+
+    suspend fun replaceTags(
+        itemId: Long,
+        tags: List<String>,
+    )
+
     suspend fun findExistingLinkId(rawUrl: String): Long?
 
     suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult
@@ -57,6 +80,58 @@ class SavedItemRepository(
     private val tagDao: TagDao,
     private val clock: Clock = Clock.systemUTC(),
 ) : SavedItemStore {
+    override fun observeItems(): Flow<List<SavedItemEntity>> = savedItemDao.observeAll()
+
+    override suspend fun getItem(itemId: Long): SavedItemEntity? = savedItemDao.getById(itemId)
+
+    override suspend fun getTags(itemId: Long): List<String> = tagDao.getTagsForItem(itemId).map(TagEntity::name)
+
+    override suspend fun setReadState(
+        itemId: Long,
+        isRead: Boolean,
+    ) {
+        val item = savedItemDao.getById(itemId) ?: return
+        val now = Instant.now(clock)
+        savedItemDao.update(
+            item.copy(
+                isRead = isRead,
+                readAt = now.takeIf { isRead },
+                updatedAt = now,
+            ),
+        )
+    }
+
+    override suspend fun updateItemContent(
+        itemId: Long,
+        title: String?,
+        note: String?,
+    ) {
+        val item = savedItemDao.getById(itemId) ?: return
+        val now = Instant.now(clock)
+        savedItemDao.update(
+            item.copy(
+                title = title,
+                note = note,
+                updatedAt = now,
+            ),
+        )
+    }
+
+    override suspend fun replaceTags(
+        itemId: Long,
+        tags: List<String>,
+    ) {
+        syncTags(
+            itemId = itemId,
+            explicitTags = tags,
+            sourceDomain = null,
+            sourcePlatform = null,
+            topicCategory = null,
+            now = Instant.now(clock),
+            replaceExisting = true,
+        )
+    }
+
     override suspend fun findExistingLinkId(rawUrl: String): Long? {
         val canonicalUrl = UrlCanonicalizer.canonicalize(rawUrl)
         return savedItemDao.findByCanonicalUrl(canonicalUrl)?.id
@@ -108,6 +183,7 @@ class SavedItemRepository(
                 sourcePlatform = sourcePlatform,
                 topicCategory = topicCategory,
                 now = now,
+                replaceExisting = true,
             )
             SaveResult.Created(itemId)
         } else {
@@ -134,6 +210,7 @@ class SavedItemRepository(
                 sourcePlatform = sourcePlatform ?: existing.sourcePlatform,
                 topicCategory = topicCategory ?: existing.topicCategory,
                 now = now,
+                replaceExisting = true,
             )
             SaveResult.UpdatedExisting(existing.id)
         }
@@ -217,6 +294,7 @@ class SavedItemRepository(
             sourcePlatform = sourcePlatform,
             topicCategory = topicCategory,
             now = now,
+            replaceExisting = true,
         )
 
         return itemId
@@ -229,6 +307,7 @@ class SavedItemRepository(
         sourcePlatform: String?,
         topicCategory: String?,
         now: Instant,
+        replaceExisting: Boolean,
     ) {
         val autoTags = buildList {
             sourceDomain?.takeIf(String::isNotBlank)?.let { add(TagDraft(it, TagType.SOURCE_DOMAIN)) }
@@ -240,7 +319,9 @@ class SavedItemRepository(
                 .forEach { add(TagDraft(it, TagType.USER)) }
         }.distinctBy { it.normalizedName to it.type }
 
-        tagDao.deleteCrossRefsForItem(itemId)
+        if (replaceExisting) {
+            tagDao.deleteCrossRefsForItem(itemId)
+        }
         if (autoTags.isEmpty()) return
 
         val tagIds = autoTags.map { draft ->

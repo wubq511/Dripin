@@ -11,4 +11,7 @@ sealed class DripinDestination(
     data object Today : DripinDestination("today", "Today")
     data object Settings : DripinDestination("settings", "Settings")
     data object Save : DripinDestination("save", "Save")
+    data object Detail : DripinDestination("detail/{itemId}", "Detail") {
+        fun routeFor(itemId: Long): String = "detail/$itemId"
+    }
 }

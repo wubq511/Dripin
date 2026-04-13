@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.dripin.app.core.common.SourcePlatformClassifier
 import com.dripin.app.core.common.TopicClassifier
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.metadata.LinkMetadata
 import com.dripin.app.data.metadata.LinkMetadataReader
 import com.dripin.app.data.repository.LinkSaveRequest
@@ -11,6 +12,8 @@ import com.dripin.app.data.repository.SaveResult
 import com.dripin.app.data.repository.SavedItemStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -45,6 +48,28 @@ class SaveItemViewModelTest {
     }
 
     private class FakeSavedItemStore : SavedItemStore {
+        override fun observeItems(): Flow<List<SavedItemEntity>> = flowOf(emptyList())
+
+        override suspend fun getItem(itemId: Long): SavedItemEntity? = null
+
+        override suspend fun getTags(itemId: Long): List<String> = emptyList()
+
+        override suspend fun setReadState(
+            itemId: Long,
+            isRead: Boolean,
+        ) = Unit
+
+        override suspend fun updateItemContent(
+            itemId: Long,
+            title: String?,
+            note: String?,
+        ) = Unit
+
+        override suspend fun replaceTags(
+            itemId: Long,
+            tags: List<String>,
+        ) = Unit
+
         override suspend fun findExistingLinkId(rawUrl: String): Long? = null
 
         override suspend fun upsertSharedLink(request: LinkSaveRequest): SaveResult =

@@ -29,4 +29,14 @@ interface TagDao {
 
     @Query("DELETE FROM item_tag_cross_refs WHERE itemId = :itemId")
     suspend fun deleteCrossRefsForItem(itemId: Long)
+
+    @Query(
+        """
+        SELECT tags.* FROM tags
+        INNER JOIN item_tag_cross_refs ON tags.id = item_tag_cross_refs.tagId
+        WHERE item_tag_cross_refs.itemId = :itemId
+        ORDER BY tags.name COLLATE NOCASE
+        """,
+    )
+    suspend fun getTagsForItem(itemId: Long): List<TagEntity>
 }

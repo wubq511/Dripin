@@ -919,6 +919,12 @@ git commit -m "feat: add share parsing and editable save flow"
 ### Task 5: Implement the home list, filters, and item detail experience
 
 **Files:**
+- Modify: `app/src/main/java/com/dripin/app/MainActivity.kt`
+- Modify: `app/src/main/java/com/dripin/app/DripinApp.kt`
+- Modify: `app/src/main/java/com/dripin/app/navigation/DripinDestination.kt`
+- Modify: `app/src/main/java/com/dripin/app/navigation/DripinNavGraph.kt`
+- Modify: `app/src/main/java/com/dripin/app/data/local/dao/TagDao.kt`
+- Modify: `app/src/main/java/com/dripin/app/data/repository/SavedItemRepository.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/home/HomeViewModel.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/home/HomeScreen.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/home/SavedItemCard.kt`
