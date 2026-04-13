@@ -140,6 +140,13 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+
+    plugins {
+        id("com.android.application") version "9.1.0"
+        id("com.android.legacy-kapt") version "9.1.0"
+        id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
+        id("com.google.dagger.hilt.android") version "2.59.2"
+    }
 }
 
 dependencyResolutionManagement {
@@ -179,9 +186,8 @@ Use an `app/build.gradle.kts` that enables Compose, Hilt, Room, WorkManager, Dat
 ```kotlin
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.kapt")
+    id("com.android.legacy-kapt")
     id("com.google.dagger.hilt.android")
 }
 
@@ -195,7 +201,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "com.dripin.app.HiltDripinTestRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures { compose = true }
@@ -203,7 +209,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
@@ -226,12 +231,14 @@ dependencies {
 }
 ```
 
+Note: AGP 9.1 enables built-in Kotlin support, so this baseline should not wire `org.jetbrains.kotlin.android` or `org.jetbrains.kotlin.kapt` directly. Use `com.android.legacy-kapt` as the temporary bridge for Room/Hilt annotation processing in the MVP, then plan a later KSP migration once the data layer stabilizes.
+
 Add an `AndroidManifest.xml` with:
 
 ```xml
 <application
     android:name=".DripinApplication"
-    android:allowBackup="true"
+    android:allowBackup="false"
     android:supportsRtl="true"
     android:theme="@style/Theme.Dripin">
     <activity android:name=".MainActivity" android:exported="true">
@@ -308,6 +315,7 @@ git commit -m "chore: bootstrap Android app baseline"
 ### Task 2: Build the shared theme, navigation shell, and first-pass feature routes
 
 **Files:**
+- Modify: `app/build.gradle.kts`
 - Modify: `app/src/main/java/com/dripin/app/DripinApp.kt`
 - Create: `app/src/main/java/com/dripin/app/navigation/DripinDestination.kt`
 - Create: `app/src/main/java/com/dripin/app/navigation/DripinNavGraph.kt`
@@ -317,23 +325,32 @@ git commit -m "chore: bootstrap Android app baseline"
 - Create: `app/src/main/java/com/dripin/app/feature/home/HomeScreen.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/recommendation/TodayScreen.kt`
 - Create: `app/src/main/java/com/dripin/app/feature/settings/SettingsScreen.kt`
-- Test: `app/src/androidTest/java/com/dripin/app/navigation/AppShellNavigationTest.kt`
+- Test: `app/src/androidTest/java/com/dripin/app/navigation/DripinNavGraphTest.kt`
 
 - [ ] **Step 1: Write the failing app shell navigation test**
 
 ```kotlin
 @RunWith(AndroidJUnit4::class)
-class AppShellNavigationTest {
+class DripinNavGraphTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
     fun homeSettingsAndTodayDestinationsRender() {
-        composeRule.onNodeWithText("Home").assertExists()
-        composeRule.onNodeWithText("Today").assertExists()
-        composeRule.onNodeWithText("Settings").assertExists()
+        composeRule.onNodeWithTag("nav-home").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-today").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-settings").assertIsDisplayed()
     }
 }
+```
+
+Before compiling the test, extend `app/build.gradle.kts` with the Android instrumentation stack required by Compose testing:
+
+```kotlin
+androidTestImplementation("androidx.test.ext:junit:1.3.0")
+androidTestImplementation("androidx.test:rules:1.7.0")
+androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+debugImplementation("androidx.compose.ui:ui-test-manifest")
 ```
 
 - [ ] **Step 2: Run the instrumentation test and watch it fail**
@@ -341,7 +358,7 @@ class AppShellNavigationTest {
 Run:
 
 ```powershell
-.\gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.navigation.AppShellNavigationTest
+.\gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.navigation.DripinNavGraphTest
 ```
 
 Expected: FAIL because the shell routes and first-pass screens do not exist.
@@ -400,7 +417,7 @@ Mirror the same approach for `TodayScreen` and `SettingsScreen` so the three lab
 Run:
 
 ```powershell
-.\gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.navigation.AppShellNavigationTest
+.\gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dripin.app.navigation.DripinNavGraphTest
 ```
 
 Expected: PASS.
@@ -1313,6 +1330,7 @@ git commit -m "feat: add daily recommendations and today experience"
 ### Task 8: Wire Android share targets, deep links, and end-to-end verification
 
 **Files:**
+- Modify: `app/build.gradle.kts`
 - Modify: `app/src/main/AndroidManifest.xml`
 - Modify: `app/src/main/java/com/dripin/app/navigation/DripinNavGraph.kt`
 - Create: `app/src/main/java/com/dripin/app/HiltDripinTestRunner.kt`
@@ -1415,6 +1433,21 @@ class HiltDripinTestRunner : AndroidJUnitRunner() {
     override fun newApplication(cl: ClassLoader?, name: String?, context: Context?): Application {
         return super.newApplication(cl, HiltTestApplication::class.java.name, context)
     }
+}
+```
+
+Also update `app/build.gradle.kts` so instrumentation switches from `androidx.test.runner.AndroidJUnitRunner` to `com.dripin.app.HiltDripinTestRunner`, and add the Hilt Android test processor:
+
+```kotlin
+android {
+    defaultConfig {
+        testInstrumentationRunner = "com.dripin.app.HiltDripinTestRunner"
+    }
+}
+
+dependencies {
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.59.2")
+    kaptAndroidTest("com.google.dagger:hilt-compiler:2.59.2")
 }
 ```
 
