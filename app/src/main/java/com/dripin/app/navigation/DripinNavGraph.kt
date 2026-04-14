@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -29,12 +30,15 @@ import androidx.navigation.compose.rememberNavController
 import com.dripin.app.core.designsystem.theme.DripinAccent
 import com.dripin.app.core.designsystem.theme.DripinLine
 import com.dripin.app.data.repository.SavedItemStore
+import com.dripin.app.data.repository.SettingsRepository
 import com.dripin.app.feature.detail.DetailScreen
 import com.dripin.app.feature.detail.DetailViewModel
 import com.dripin.app.feature.home.HomeScreen
 import com.dripin.app.feature.home.HomeViewModel
 import com.dripin.app.feature.recommendation.TodayScreen
 import com.dripin.app.feature.settings.SettingsScreen
+import com.dripin.app.feature.settings.SettingsViewModel
+import com.dripin.app.feature.settings.SettingsViewModelFactory
 
 private val bottomBarDestinations = listOf(
     DripinDestination.Home,
@@ -46,6 +50,7 @@ private val bottomBarDestinations = listOf(
 @Composable
 fun DripinNavGraph(
     repository: SavedItemStore,
+    settingsRepository: SettingsRepository,
     navController: NavHostController = rememberNavController(),
 ) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -112,7 +117,9 @@ fun DripinNavGraph(
                 TodayScreen()
             }
             composable(DripinDestination.Settings.route) {
-                SettingsScreen()
+                val factory = remember(settingsRepository) { SettingsViewModelFactory(settingsRepository) }
+                val viewModel: SettingsViewModel = viewModel(factory = factory)
+                SettingsScreen(viewModel = viewModel)
             }
             composable(DripinDestination.Save.route) {
                 SaveRouteScreen()
