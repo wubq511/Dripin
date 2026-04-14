@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModelProvider
-import androidx.room.Room
 import com.dripin.app.core.designsystem.theme.DripinTheme
 import com.dripin.app.data.local.AppDatabase
 import com.dripin.app.data.metadata.LinkMetadataFetcher
@@ -13,11 +12,7 @@ import okhttp3.OkHttpClient
 
 class ShareReceiverActivity : ComponentActivity() {
     private val database by lazy {
-        Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java,
-            "dripin.db",
-        ).build()
+        AppDatabase.build(applicationContext)
     }
 
     private val repository by lazy {

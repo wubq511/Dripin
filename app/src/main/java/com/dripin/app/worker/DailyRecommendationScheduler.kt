@@ -16,8 +16,8 @@ class DailyRecommendationScheduler(
     private val cancelExisting: () -> Unit,
     private val enqueue: (OneTimeWorkRequest) -> Unit,
     private val clock: Clock = Clock.systemDefaultZone(),
-) {
-    fun scheduleNextRun(
+) : SchedulerController {
+    override fun scheduleNextRun(
         time: LocalTime,
         zoneId: ZoneId,
     ) {
@@ -43,7 +43,7 @@ class DailyRecommendationScheduler(
         enqueue(request)
     }
 
-    fun cancel() {
+    override fun cancel() {
         cancelExisting()
     }
 
@@ -65,4 +65,13 @@ class DailyRecommendationScheduler(
             )
         }
     }
+}
+
+interface SchedulerController {
+    fun scheduleNextRun(
+        time: LocalTime,
+        zoneId: ZoneId,
+    )
+
+    fun cancel()
 }

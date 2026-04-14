@@ -24,4 +24,10 @@ interface SavedItemDao {
 
     @Query("SELECT * FROM saved_items ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<SavedItemEntity>>
+
+    @Query("SELECT * FROM saved_items ORDER BY createdAt ASC")
+    suspend fun getAllByOldestFirst(): List<SavedItemEntity>
+
+    @Query("SELECT * FROM saved_items ORDER BY createdAt DESC")
+    suspend fun getAllByNewestFirst(): List<SavedItemEntity>
 }
