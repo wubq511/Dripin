@@ -13,11 +13,12 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SavedItemRepositoryTest {
     @Test
-    fun save_image_persists_source_label_and_deduplicates_auto_tags() = runBlocking {
+    fun save_images_persists_source_label_and_deduplicates_auto_tags() = runBlocking {
         val savedItemDao = RepositorySavedItemDaoFake()
         val tagDao = FakeTagDao()
         val persistedImageStore = FakePersistedImageStore()
@@ -28,8 +29,11 @@ class SavedItemRepositoryTest {
             clock = Clock.fixed(Instant.parse("2026-04-14T09:00:00Z"), ZoneOffset.UTC),
         )
 
-        val itemId = repository.saveImage(
-            imageUri = "content://media/external/images/media/99",
+        val itemId = repository.saveImages(
+            imageUris = listOf(
+                "content://media/external/images/media/99",
+                "content://media/external/images/media/100",
+            ),
             title = "Shared Image",
             note = "from timeline",
             sourceAppPackage = "com.twitter.android",
@@ -40,16 +44,112 @@ class SavedItemRepositoryTest {
         val item = requireNotNull(savedItemDao.getById(itemId))
         val tags = repository.getTags(itemId)
 
-        assertEquals("file:///data/user/0/com.dripin.app/files/shared-images/persisted-99.jpg", item.imageUri)
+        assertEquals(
+            listOf(
+                "file:///data/user/0/com.dripin.app/files/shared-images/persisted-99.jpg",
+                "file:///data/user/0/com.dripin.app/files/shared-images/persisted-100.jpg",
+            ),
+            item.imageUris,
+        )
         assertEquals("X", item.sourceAppLabel)
         assertEquals("X", item.sourcePlatform)
         assertFalse(tags.groupBy { it.lowercase() }.values.any { it.size > 1 })
+    }
+
+    @Test
+    fun update_item_content_refreshes_link_payload_and_auto_tags() = runBlocking {
+        val savedItemDao = RepositorySavedItemDaoFake()
+        val tagDao = FakeTagDao()
+        val repository = SavedItemRepository(
+            savedItemDao = savedItemDao,
+            tagDao = tagDao,
+            clock = Clock.fixed(Instant.parse("2026-04-14T09:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val saveResult = repository.upsertSharedLink(
+            LinkSaveRequest(
+                rawUrl = "https://github.com/openai/openai/releases/tag/v1",
+                title = "OpenAI release",
+                textContent = "first draft",
+                note = "old note",
+                sourceAppPackage = "com.github.android",
+                sourceAppLabel = "GitHub",
+            ),
+        )
+        val itemId = (saveResult as SaveResult.Created).itemId
+
+        repository.updateItemContent(
+            itemId = itemId,
+            title = "Android release note",
+            note = "fresh note",
+            rawUrl = "https://x.com/openai/status/42",
+            textContent = "updated body",
+        )
+
+        val item = requireNotNull(savedItemDao.getById(itemId))
+        val tags = repository.getTags(itemId)
+
+        assertEquals("https://x.com/openai/status/42", item.rawUrl)
+        assertEquals("https://x.com/openai/status/42", item.canonicalUrl)
+        assertEquals("X", item.sourcePlatform)
+        assertEquals("x.com", item.sourceDomain)
+        assertEquals("updated body", item.textContent)
+        assertEquals("fresh note", item.note)
+        assertTrue("x.com" in tags)
+        assertTrue("X" in tags)
+        assertFalse("github.com" in tags)
+    }
+
+    @Test
+    fun update_item_content_replaces_image_payload_for_image_items() = runBlocking {
+        val savedItemDao = RepositorySavedItemDaoFake()
+        val tagDao = FakeTagDao()
+        val repository = SavedItemRepository(
+            savedItemDao = savedItemDao,
+            tagDao = tagDao,
+            imageStore = FakePersistedImageStore(),
+            clock = Clock.fixed(Instant.parse("2026-04-14T09:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val itemId = repository.saveImages(
+            imageUris = listOf("content://media/external/images/media/3"),
+            title = "Mood board",
+            note = "first cut",
+            sourceAppPackage = "com.xingin.xhs",
+            sourceAppLabel = "小红书",
+            tags = emptyList(),
+        )
+
+        repository.updateItemContent(
+            itemId = itemId,
+            title = "Mood board updated",
+            note = "second cut",
+            imageUris = listOf(
+                "file:///data/user/0/com.dripin.app/files/shared-images/persisted-3.jpg",
+                "content://media/external/images/media/4",
+            ),
+        )
+
+        val item = requireNotNull(savedItemDao.getById(itemId))
+        assertEquals(
+            listOf(
+                "file:///data/user/0/com.dripin.app/files/shared-images/persisted-3.jpg",
+                "file:///data/user/0/com.dripin.app/files/shared-images/persisted-4.jpg",
+            ),
+            item.imageUris,
+        )
+        assertEquals("Mood board updated", item.title)
+        assertEquals("second cut", item.note)
     }
 }
 
 private class FakePersistedImageStore : PersistedImageStore {
     override suspend fun persist(sourceUri: String): String {
-        return "file:///data/user/0/com.dripin.app/files/shared-images/persisted-99.jpg"
+        if (!sourceUri.startsWith("content://")) {
+            return sourceUri
+        }
+        val suffix = sourceUri.substringAfterLast('/').substringBefore('?')
+        return "file:///data/user/0/com.dripin.app/files/shared-images/persisted-$suffix.jpg"
     }
 }
 

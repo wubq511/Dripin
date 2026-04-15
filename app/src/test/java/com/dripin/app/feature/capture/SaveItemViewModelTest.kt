@@ -78,6 +78,18 @@ class SaveItemViewModelTest {
 
         viewModel.onSharedTextChanged("手工补一段稍后再看")
         assertTrue(viewModel.uiState.value.canSave)
+
+        viewModel.setContentType(ContentType.IMAGE)
+        assertFalse(viewModel.uiState.value.canSave)
+
+        viewModel.onSharedImageUrisChanged(
+            listOf(
+                "content://media/external/images/media/11",
+                "content://media/external/images/media/12",
+            ),
+        )
+        assertTrue(viewModel.uiState.value.canSave)
+        assertEquals(2, viewModel.uiState.value.sharedImageUris.size)
     }
 
     private class FakeSavedItemStore : SavedItemStore {
@@ -96,6 +108,9 @@ class SaveItemViewModelTest {
             itemId: Long,
             title: String?,
             note: String?,
+            rawUrl: String?,
+            textContent: String?,
+            imageUris: List<String>?,
         ) = Unit
 
         override suspend fun replaceTags(
@@ -117,8 +132,8 @@ class SaveItemViewModelTest {
             tags: List<String>,
         ): Long = 2L
 
-        override suspend fun saveImage(
-            imageUri: String,
+        override suspend fun saveImages(
+            imageUris: List<String>,
             title: String?,
             note: String?,
             sourceAppPackage: String?,

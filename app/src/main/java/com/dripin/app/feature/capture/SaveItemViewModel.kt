@@ -110,9 +110,26 @@ class SaveItemViewModel(
         }
     }
 
-    fun onSharedImageUriChanged(value: String?) {
+    fun onSharedImageUrisChanged(value: List<String>) {
         _uiState.update { current ->
-            deriveState(current.copy(sharedImageUri = value))
+            deriveState(current.copy(sharedImageUris = value.distinct()))
+        }
+    }
+
+    fun onSharedImageUriChanged(value: String?) {
+        onSharedImageUrisChanged(value?.let(::listOf).orEmpty())
+    }
+
+    fun appendSharedImageUris(values: List<String>) {
+        if (values.isEmpty()) return
+        _uiState.update { current ->
+            deriveState(current.copy(sharedImageUris = (current.sharedImageUris + values).distinct()))
+        }
+    }
+
+    fun removeSharedImageUri(value: String) {
+        _uiState.update { current ->
+            deriveState(current.copy(sharedImageUris = current.sharedImageUris.filterNot { it == value }))
         }
     }
 
@@ -164,8 +181,8 @@ class SaveItemViewModel(
                 }
 
                 ContentType.IMAGE -> {
-                    val itemId = repository.saveImage(
-                        imageUri = state.sharedImageUri.orEmpty(),
+                    val itemId = repository.saveImages(
+                        imageUris = state.sharedImageUris,
                         title = state.title.ifBlank { null },
                         note = state.note.ifBlank { null },
                         sourceAppPackage = state.sourceAppPackage,
@@ -191,7 +208,7 @@ class SaveItemViewModel(
                 title = payload.initialTitle.orEmpty(),
                 sharedUrl = payload.sharedUrl,
                 sharedText = payload.sharedText,
-                sharedImageUri = payload.sharedImageUri,
+                sharedImageUris = payload.sharedImageUris,
                 sourceAppPackage = payload.sourceAppPackage,
                 sourceAppLabel = payload.sourceAppLabel,
                 note = "",

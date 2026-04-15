@@ -52,6 +52,8 @@ import com.dripin.app.feature.recommendation.TodayViewModelFactory
 import com.dripin.app.feature.settings.SettingsScreen
 import com.dripin.app.feature.settings.SettingsViewModel
 import com.dripin.app.feature.settings.SettingsViewModelFactory
+import com.dripin.app.worker.AndroidNotificationCapabilityReader
+import kotlinx.coroutines.flow.first
 
 private val bottomBarDestinations = listOf(
     DripinDestination.Home,
@@ -107,7 +109,12 @@ fun DripinNavGraph(
                 deepLinks = listOf(navDeepLink { uriPattern = "dripin://today" }),
             ) {
                 val context = LocalContext.current
-                val factory = remember(recommendationRepository) { TodayViewModelFactory(recommendationRepository) }
+                val factory = remember(recommendationRepository, settingsRepository) {
+                    TodayViewModelFactory(
+                        repository = recommendationRepository,
+                        preferencesProvider = { settingsRepository.preferences.first() },
+                    )
+                }
                 val viewModel: TodayViewModel = viewModel(factory = factory)
                 TodayScreen(
                     viewModel = viewModel,
@@ -117,7 +124,13 @@ fun DripinNavGraph(
                 )
             }
             composable(DripinDestination.Settings.route) {
-                val factory = remember(settingsRepository) { SettingsViewModelFactory(settingsRepository) }
+                val context = LocalContext.current
+                val factory = remember(settingsRepository, context) {
+                    SettingsViewModelFactory(
+                        repository = settingsRepository,
+                        notificationCapabilityReader = AndroidNotificationCapabilityReader(context),
+                    )
+                }
                 val viewModel: SettingsViewModel = viewModel(factory = factory)
                 SettingsScreen(viewModel = viewModel)
             }

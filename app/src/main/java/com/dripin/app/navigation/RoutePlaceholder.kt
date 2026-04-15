@@ -2,6 +2,7 @@ package com.dripin.app.navigation
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,13 +69,13 @@ fun SaveRouteScreen(
         )
     }
     val viewModel: SaveItemViewModel = viewModel(factory = factory)
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        viewModel.onSharedImageUriChanged(uri?.toString())
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+        viewModel.appendSharedImageUris(uris.map(Uri::toString))
     }
 
     SaveItemScreen(
         viewModel = viewModel,
         onDone = onDone,
-        onPickImage = { imagePicker.launch("image/*") },
+        onPickImages = { imagePicker.launch("image/*") },
     )
 }

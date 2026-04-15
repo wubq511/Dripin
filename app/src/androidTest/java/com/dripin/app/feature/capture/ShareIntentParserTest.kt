@@ -1,7 +1,10 @@
 package com.dripin.app.feature.capture
 
+import android.content.ClipData
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dripin.app.core.model.ContentType
 import org.junit.Assert.assertEquals
@@ -51,6 +54,28 @@ class ShareIntentParserTest {
         val parsed = ShareIntentParser.parse(intent, "tv.danmaku.bili", "B站")
 
         assertEquals(ContentType.IMAGE, parsed.contentType)
-        assertEquals(uri.toString(), parsed.sharedImageUri)
+        assertEquals(listOf(uri.toString()), parsed.sharedImageUris)
+    }
+
+    @Test
+    fun parses_multi_image_share_as_image_payload() {
+        val firstUri = Uri.parse("content://media/external/images/media/2")
+        val secondUri = Uri.parse("content://media/external/images/media/3")
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "image/jpeg"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(firstUri, secondUri))
+            clipData = ClipData.newUri(
+                ApplicationProvider.getApplicationContext<Context>().contentResolver,
+                "images",
+                firstUri,
+            ).apply {
+                addItem(ClipData.Item(secondUri))
+            }
+        }
+
+        val parsed = ShareIntentParser.parse(intent, "com.xingin.xhs", "小红书")
+
+        assertEquals(ContentType.IMAGE, parsed.contentType)
+        assertEquals(listOf(firstUri.toString(), secondUri.toString()), parsed.sharedImageUris)
     }
 }

@@ -19,8 +19,19 @@ data class DetailUiState(
     val tags: List<String> = emptyList(),
     val titleDraft: String = "",
     val noteDraft: String = "",
+    val rawUrlDraft: String = "",
+    val textContentDraft: String = "",
+    val imageUriDrafts: List<String> = emptyList(),
     val tagDraft: String = "",
-)
+) {
+    val canSaveEdits: Boolean
+        get() = when (item?.contentType) {
+            com.dripin.app.core.model.ContentType.LINK -> rawUrlDraft.isNotBlank()
+            com.dripin.app.core.model.ContentType.TEXT -> textContentDraft.isNotBlank()
+            com.dripin.app.core.model.ContentType.IMAGE -> imageUriDrafts.isNotEmpty()
+            null -> false
+        }
+}
 
 class DetailViewModel(
     private val itemId: Long,
@@ -41,6 +52,27 @@ class DetailViewModel(
 
     fun onNoteChanged(value: String) {
         _uiState.update { it.copy(noteDraft = value) }
+    }
+
+    fun onRawUrlChanged(value: String) {
+        _uiState.update { it.copy(rawUrlDraft = value) }
+    }
+
+    fun onTextContentChanged(value: String) {
+        _uiState.update { it.copy(textContentDraft = value) }
+    }
+
+    fun addImageUris(values: List<String>) {
+        if (values.isEmpty()) return
+        _uiState.update { state ->
+            state.copy(imageUriDrafts = (state.imageUriDrafts + values).distinct())
+        }
+    }
+
+    fun removeImageUri(value: String) {
+        _uiState.update { state ->
+            state.copy(imageUriDrafts = state.imageUriDrafts.filterNot { it == value })
+        }
     }
 
     fun onTagDraftChanged(value: String) {
@@ -85,6 +117,9 @@ class DetailViewModel(
                 itemId = itemId,
                 title = uiState.value.titleDraft.ifBlank { null },
                 note = uiState.value.noteDraft.ifBlank { null },
+                rawUrl = uiState.value.rawUrlDraft.ifBlank { null },
+                textContent = uiState.value.textContentDraft.ifBlank { null },
+                imageUris = uiState.value.imageUriDrafts,
             )
             repository.replaceTags(itemId, uiState.value.tags)
             refresh()
@@ -111,6 +146,9 @@ class DetailViewModel(
                 tags = tags,
                 titleDraft = item.title.orEmpty(),
                 noteDraft = item.note.orEmpty(),
+                rawUrlDraft = item.rawUrl.orEmpty(),
+                textContentDraft = item.textContent.orEmpty(),
+                imageUriDrafts = item.imageUris,
             )
         }
     }

@@ -3,6 +3,7 @@ package com.dripin.app.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.util.Log
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -10,32 +11,64 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import com.dripin.app.MainActivity
 
+const val RecommendationChannelId = "daily_recommendation"
+
 interface RecommendationNotifier {
-    fun showDailyRecommendation(count: Int)
+    fun showDailyRecommendation(count: Int): NotificationPostResult
+}
+
+sealed interface NotificationPostResult {
+    data object Posted : NotificationPostResult
+
+    data class Blocked(
+        val issue: NotificationCapabilityIssue,
+    ) : NotificationPostResult
 }
 
 class AndroidRecommendationNotifier(
     private val context: Context,
+    private val capabilityReader: NotificationCapabilityReader = AndroidNotificationCapabilityReader(context),
 ) : RecommendationNotifier {
-    override fun showDailyRecommendation(count: Int) {
+    override fun showDailyRecommendation(count: Int): NotificationPostResult {
+        val capability = capabilityReader.read()
+        capability.primaryIssue()?.let { issue ->
+            Log.w(
+                Tag,
+                "Skipping daily recommendation notification: $issue " +
+                    "(permission=${capability.runtimePermissionGranted}, " +
+                    "appEnabled=${capability.appNotificationsEnabled}, " +
+                    "channelExists=${capability.channelExists}, " +
+                    "channelBlocked=${capability.channelBlocked})",
+            )
+            return NotificationPostResult.Blocked(issue)
+        }
+
         ensureChannel()
-        NotificationManagerCompat.from(context).notify(
-            NotificationId,
-            NotificationCompat.Builder(context, ChannelId)
-                .setSmallIcon(android.R.drawable.ic_popup_reminder)
-                .setContentTitle("今日推荐已准备好")
-                .setContentText("今天为你挑了 $count 条稍后再看的内容。")
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setAutoCancel(true)
-                .setContentIntent(buildPendingIntent())
-                .build(),
-        )
+        return runCatching {
+            NotificationManagerCompat.from(context).notify(
+                NotificationId,
+                NotificationCompat.Builder(context, RecommendationChannelId)
+                    .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                    .setContentTitle("今日推荐已准备好")
+                    .setContentText("今天为你挑了 $count 条稍后再看的内容。")
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .setContentIntent(buildPendingIntent())
+                    .build(),
+            )
+            NotificationPostResult.Posted
+        }.getOrElse { throwable ->
+            Log.w(Tag, "Failed to post daily recommendation notification", throwable)
+            NotificationPostResult.Blocked(
+                capability.primaryIssue() ?: NotificationCapabilityIssue.ChannelBlocked,
+            )
+        }
     }
 
     private fun ensureChannel() {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
-            ChannelId,
+            RecommendationChannelId,
             "每日推荐",
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
@@ -59,7 +92,7 @@ class AndroidRecommendationNotifier(
     }
 
     companion object {
-        const val ChannelId = "daily_recommendation"
         private const val NotificationId = 4001
+        private const val Tag = "DailyRecommendation"
     }
 }

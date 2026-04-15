@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.dripin.app.core.model.ContentType
 import com.dripin.app.data.local.entity.SavedItemEntity
+import com.dripin.app.data.preferences.UserPreferences
 import com.dripin.app.data.repository.RecommendationStore
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +18,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 data class TodayCardModel(
@@ -28,6 +31,7 @@ data class TodayCardModel(
     val note: String?,
     val rawUrl: String?,
     val imageUri: String?,
+    val isRead: Boolean = false,
 )
 
 data class TodayUiState(
@@ -37,7 +41,9 @@ data class TodayUiState(
 
 class TodayViewModel(
     private val repository: RecommendationStore,
+    private val preferencesProvider: suspend () -> UserPreferences = { UserPreferences() },
     private val today: LocalDate = LocalDate.now(Clock.systemDefaultZone().withZone(ZoneId.systemDefault())),
+    private val currentTimeProvider: () -> LocalTime = { LocalTime.now() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val scope = CoroutineScope(SupervisorJob() + workerDispatcher)
@@ -45,13 +51,23 @@ class TodayViewModel(
     val uiState: StateFlow<TodayUiState> = _uiState.asStateFlow()
 
     init {
-        refresh()
+        scope.launch {
+            maybeGenerateBatchIfDue()
+            repository.observeTodayItems(today).collect { items ->
+                _uiState.value = TodayUiState(
+                    date = today,
+                    cards = items.mapIndexed { index, item -> item.toCardModel(rank = index + 1) },
+                )
+                if (items.isEmpty()) {
+                    maybeGenerateBatchIfDue()
+                }
+            }
+        }
     }
 
     fun markRead(itemId: Long) {
         scope.launch {
             repository.markItemRead(itemId)
-            refresh()
         }
     }
 
@@ -60,16 +76,21 @@ class TodayViewModel(
         scope.cancel()
     }
 
-    private fun refresh() {
+    fun refresh() {
         scope.launch {
-            val cards = repository.getTodayItems(today).mapIndexed { index, item ->
-                item.toCardModel(rank = index + 1)
-            }
-            _uiState.value = TodayUiState(
-                date = today,
-                cards = cards,
-            )
+            maybeGenerateBatchIfDue()
         }
+    }
+
+    private suspend fun maybeGenerateBatchIfDue() {
+        if (repository.getTodayItems(today).isNotEmpty()) return
+        val preferences = preferencesProvider()
+        if (!preferences.notificationsEnabled) return
+        if (currentTimeProvider().isBefore(preferences.dailyPushTime)) return
+        repository.generateTodayBatch(
+            preferences = preferences,
+            today = today,
+        )
     }
 
     private fun SavedItemEntity.toCardModel(rank: Int): TodayCardModel = TodayCardModel(
@@ -81,13 +102,16 @@ class TodayViewModel(
         textPreview = textContent,
         note = note,
         rawUrl = rawUrl,
-        imageUri = imageUri,
+        imageUri = primaryImageUri,
+        isRead = isRead,
     )
 }
 
 class TodayViewModelFactory(
     private val repository: RecommendationStore,
+    private val preferencesProvider: suspend () -> UserPreferences = { UserPreferences() },
     private val today: LocalDate = LocalDate.now(),
+    private val currentTimeProvider: () -> LocalTime = { LocalTime.now() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
@@ -97,7 +121,9 @@ class TodayViewModelFactory(
         }
         return TodayViewModel(
             repository = repository,
+            preferencesProvider = preferencesProvider,
             today = today,
+            currentTimeProvider = currentTimeProvider,
             workerDispatcher = workerDispatcher,
         ) as T
     }

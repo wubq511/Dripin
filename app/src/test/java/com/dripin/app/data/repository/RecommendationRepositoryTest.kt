@@ -13,6 +13,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -151,6 +152,10 @@ private class FakeDailyRecommendationDao(
         val batch = getBatchForDate(date) ?: return emptyList()
         return getItemIdsForBatch(batch.id).mapNotNull { itemId -> savedItemDao.getById(itemId) }
     }
+
+    override fun observeItemsForDate(date: LocalDate): Flow<List<SavedItemEntity>> {
+        return MutableStateFlow(emptyList())
+    }
 }
 
 private fun fakeLinkItem(
@@ -164,7 +169,7 @@ private fun fakeLinkItem(
     rawUrl = "https://github.com/openai/openai",
     canonicalUrl = "https://github.com/openai/openai",
     textContent = null,
-    imageUri = null,
+    imageUris = emptyList(),
     sourceAppPackage = "com.github.android",
     sourceAppLabel = "GitHub",
     sourcePlatform = "GitHub",
@@ -191,7 +196,7 @@ private fun fakeTextItem(
     rawUrl = null,
     canonicalUrl = null,
     textContent = "Some text content",
-    imageUri = null,
+    imageUris = emptyList(),
     sourceAppPackage = "com.tencent.mm",
     sourceAppLabel = "微信",
     sourcePlatform = "微信",
@@ -218,7 +223,7 @@ private fun fakeImageItem(
     rawUrl = null,
     canonicalUrl = null,
     textContent = null,
-    imageUri = "content://image/$id",
+    imageUris = listOf("content://image/$id"),
     sourceAppPackage = "com.xingin.xhs",
     sourceAppLabel = "小红书",
     sourcePlatform = "小红书",

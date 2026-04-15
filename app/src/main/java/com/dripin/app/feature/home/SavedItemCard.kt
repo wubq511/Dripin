@@ -52,7 +52,7 @@ fun SavedItemCard(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (!item.imageUri.isNullOrBlank()) {
+            if (!item.primaryImageUri.isNullOrBlank()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -60,7 +60,7 @@ fun SavedItemCard(
                         .clip(RoundedCornerShape(28.dp)),
                 ) {
                     AsyncImage(
-                        model = item.imageUri,
+                        model = item.primaryImageUri,
                         contentDescription = item.title ?: "image preview",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,

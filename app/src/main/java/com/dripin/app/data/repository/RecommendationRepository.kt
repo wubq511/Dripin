@@ -10,6 +10,7 @@ import com.dripin.app.data.preferences.UserPreferences
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
 
 data class TodayBatch(
     val id: Long,
@@ -25,6 +26,8 @@ interface RecommendationStore {
     suspend fun getTodayBatch(today: LocalDate): TodayBatch?
 
     suspend fun getTodayItems(today: LocalDate): List<SavedItemEntity>
+
+    fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>>
 
     suspend fun markItemRead(itemId: Long)
 }
@@ -98,6 +101,10 @@ class RecommendationRepository(
         return recommendationDao.getItemsForDate(today)
     }
 
+    override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> {
+        return recommendationDao.observeItemsForDate(today)
+    }
+
     override suspend fun markItemRead(itemId: Long) {
         val item = savedItemDao.getById(itemId) ?: return
         val now = Instant.now(clock)
@@ -120,6 +127,6 @@ class RecommendationRepository(
     private fun hasUsablePayload(item: SavedItemEntity): Boolean {
         return !item.rawUrl.isNullOrBlank() ||
             !item.textContent.isNullOrBlank() ||
-            !item.imageUri.isNullOrBlank()
+            item.imageUris.isNotEmpty()
     }
 }

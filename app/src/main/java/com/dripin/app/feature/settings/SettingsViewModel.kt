@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.dripin.app.core.model.RecommendationSortMode
 import com.dripin.app.data.preferences.UserPreferences
 import com.dripin.app.data.repository.SettingsRepository
+import com.dripin.app.worker.NotificationCapabilityReader
+import com.dripin.app.worker.NotificationCapabilitySnapshot
 import java.time.LocalTime
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -22,21 +24,36 @@ data class SettingsUiState(
     val dailyPushCount: Int = 3,
     val repeatPushedUnreadItems: Boolean = true,
     val recommendationSortMode: RecommendationSortMode = RecommendationSortMode.OLDEST_SAVED_FIRST,
+    val notificationCapability: NotificationCapabilitySnapshot = NotificationCapabilitySnapshot(
+        runtimePermissionGranted = true,
+        appNotificationsEnabled = true,
+        channelExists = false,
+        channelBlocked = false,
+    ),
 )
 
 class SettingsViewModel(
     private val repository: SettingsRepository,
+    private val notificationCapabilityReader: NotificationCapabilityReader,
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val scope = CoroutineScope(SupervisorJob() + workerDispatcher)
     private val _uiState = MutableStateFlow(SettingsUiState())
+    private var latestPreferences = UserPreferences()
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
         scope.launch {
             repository.preferences.collect { preferences ->
-                _uiState.value = preferences.toUiState()
+                latestPreferences = preferences
+                emitUiState()
             }
+        }
+    }
+
+    fun refreshNotificationStatus() {
+        scope.launch {
+            emitUiState()
         }
     }
 
@@ -75,17 +92,25 @@ class SettingsViewModel(
         scope.cancel()
     }
 
-    private fun UserPreferences.toUiState(): SettingsUiState = SettingsUiState(
+    private fun emitUiState() {
+        _uiState.value = latestPreferences.toUiState(notificationCapabilityReader.read())
+    }
+
+    private fun UserPreferences.toUiState(
+        notificationCapability: NotificationCapabilitySnapshot,
+    ): SettingsUiState = SettingsUiState(
         notificationsEnabled = notificationsEnabled,
         dailyPushTime = dailyPushTime,
         dailyPushCount = dailyPushCount,
         repeatPushedUnreadItems = repeatPushedUnreadItems,
         recommendationSortMode = recommendationSortMode,
+        notificationCapability = notificationCapability,
     )
 }
 
 class SettingsViewModelFactory(
     private val repository: SettingsRepository,
+    private val notificationCapabilityReader: NotificationCapabilityReader,
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
@@ -95,6 +120,7 @@ class SettingsViewModelFactory(
         }
         return SettingsViewModel(
             repository = repository,
+            notificationCapabilityReader = notificationCapabilityReader,
             workerDispatcher = workerDispatcher,
         ) as T
     }

@@ -8,6 +8,7 @@ import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
 import com.dripin.app.data.local.entity.SavedItemEntity
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DailyRecommendationDao {
@@ -47,4 +48,17 @@ interface DailyRecommendationDao {
         """,
     )
     suspend fun getItemsForDate(date: LocalDate): List<SavedItemEntity>
+
+    @Query(
+        """
+        SELECT saved_items.* FROM saved_items
+        INNER JOIN daily_recommendation_items
+            ON daily_recommendation_items.itemId = saved_items.id
+        INNER JOIN daily_recommendations
+            ON daily_recommendations.id = daily_recommendation_items.batchId
+        WHERE daily_recommendations.recommendedDate = :date
+        ORDER BY daily_recommendation_items.displayOrder ASC
+        """,
+    )
+    fun observeItemsForDate(date: LocalDate): Flow<List<SavedItemEntity>>
 }

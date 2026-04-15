@@ -62,6 +62,9 @@ private class FakeSavedItemStore(
         itemId: Long,
         title: String?,
         note: String?,
+        rawUrl: String?,
+        textContent: String?,
+        imageUris: List<String>?,
     ) = Unit
 
     override suspend fun replaceTags(
@@ -82,8 +85,8 @@ private class FakeSavedItemStore(
         tags: List<String>,
     ): Long = 98L
 
-    override suspend fun saveImage(
-        imageUri: String,
+    override suspend fun saveImages(
+        imageUris: List<String>,
         title: String?,
         note: String?,
         sourceAppPackage: String?,
@@ -103,7 +106,7 @@ private fun fakeLinkItem(
     rawUrl = "https://github.com/openai/openai",
     canonicalUrl = "https://github.com/openai/openai",
     textContent = null,
-    imageUri = null,
+    imageUris = emptyList(),
     sourceAppPackage = "com.github.android",
     sourceAppLabel = "GitHub",
     sourcePlatform = "GitHub",
@@ -130,7 +133,7 @@ private fun fakeTextItem(
     rawUrl = null,
     canonicalUrl = null,
     textContent = "Some text content",
-    imageUri = null,
+    imageUris = emptyList(),
     sourceAppPackage = "com.tencent.mm",
     sourceAppLabel = "微信",
     sourcePlatform = "微信",

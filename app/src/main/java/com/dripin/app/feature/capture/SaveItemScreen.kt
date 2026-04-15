@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,12 +50,13 @@ import com.dripin.app.core.designsystem.component.SectionCard
 import com.dripin.app.core.model.ContentType
 
 private val fieldShape = RoundedCornerShape(20.dp)
+private val saveActionShape = RoundedCornerShape(24.dp)
 
 @Composable
 fun SaveItemScreen(
     viewModel: SaveItemViewModel,
     onDone: () -> Unit,
-    onPickImage: (() -> Unit)? = null,
+    onPickImages: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -181,10 +183,9 @@ fun SaveItemScreen(
                         }
 
                         ContentType.IMAGE -> {
-                            if (uiState.isManualEntry) {
+                            if (onPickImages != null) {
                                 Button(
-                                    onClick = { onPickImage?.invoke() },
-                                    enabled = onPickImage != null,
+                                    onClick = onPickImages,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                                 ) {
                                     Icon(
@@ -194,20 +195,32 @@ fun SaveItemScreen(
                                     )
                                     Spacer(modifier = Modifier.size(8.dp))
                                     Text(
-                                        text = if (uiState.sharedImageUri.isNullOrBlank()) {
+                                        text = if (uiState.sharedImageUris.isEmpty()) {
                                             "选择图片"
                                         } else {
-                                            "重新选择"
+                                            "继续添加"
                                         },
                                     )
                                 }
                             }
-                            if (!uiState.sharedImageUri.isNullOrBlank()) {
-                                ExpandableImagePreview(
-                                    imageUri = uiState.sharedImageUri.orEmpty(),
-                                    contentDescription = uiState.title.ifBlank { "Shared image preview" },
-                                    height = 240.dp,
+                            if (uiState.sharedImageUris.isNotEmpty()) {
+                                Text(
+                                    text = "已选 ${uiState.sharedImageUris.size} 张",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    uiState.sharedImageUris.forEachIndexed { index, imageUri ->
+                                        SelectedImageCard(
+                                            imageUri = imageUri,
+                                            contentDescription = uiState.title.ifBlank { "Shared image preview ${index + 1}" },
+                                            onRemove = { viewModel.removeSharedImageUri(imageUri) },
+                                        )
+                                    }
+                                }
                             } else if (uiState.isManualEntry) {
                                 Text(
                                     text = "还没有选择图片",
@@ -275,6 +288,32 @@ fun SaveItemScreen(
 }
 
 @Composable
+private fun SelectedImageCard(
+    imageUri: String,
+    contentDescription: String,
+    onRemove: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.width(150.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ExpandableImagePreview(
+            imageUri = imageUri,
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxWidth(),
+            height = 150.dp,
+        )
+        Button(
+            onClick = onRemove,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text("移除")
+        }
+    }
+}
+
+@Composable
 private fun SaveHeader(
     uiState: SaveItemUiState,
 ) {
@@ -310,22 +349,22 @@ private fun SaveActionBar(
             .fillMaxWidth()
             .navigationBarsPadding()
             .imePadding()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Button(
             onClick = onClick,
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
-                .shadow(12.dp, shape = MaterialTheme.shapes.large),
-            shape = MaterialTheme.shapes.large,
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                .height(52.dp)
+                .shadow(10.dp, shape = saveActionShape),
+            shape = saveActionShape,
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.36f),
-                disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f),
+                disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.86f),
             ),
         ) {
             Text(text = label)
@@ -340,7 +379,9 @@ private fun heroTitle(uiState: SaveItemUiState): String {
         uiState.contentType == ContentType.LINK -> "把这条链接先收进来"
         uiState.contentType == ContentType.TEXT && uiState.isManualEntry -> "手动补一段文字"
         uiState.contentType == ContentType.TEXT -> "把这段文字先安放好"
+        uiState.contentType == ContentType.IMAGE && uiState.isManualEntry && uiState.sharedImageUris.size > 1 -> "手动补几张图片"
         uiState.contentType == ContentType.IMAGE && uiState.isManualEntry -> "手动补一张图片"
+        uiState.contentType == ContentType.IMAGE && uiState.sharedImageUris.size > 1 -> "把这些图片先留住"
         else -> "把这张图片先留住"
     }
 }

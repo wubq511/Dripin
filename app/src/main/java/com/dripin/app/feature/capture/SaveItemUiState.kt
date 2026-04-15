@@ -8,7 +8,7 @@ data class SaveItemUiState(
     val title: String = "",
     val sharedUrl: String? = null,
     val sharedText: String? = null,
-    val sharedImageUri: String? = null,
+    val sharedImageUris: List<String> = emptyList(),
     val sourceAppPackage: String? = null,
     val sourceAppLabel: String? = null,
     val sourceDomain: String? = null,
@@ -28,6 +28,6 @@ data class SaveItemUiState(
         get() = when (contentType) {
             ContentType.LINK -> !sharedUrl.isNullOrBlank()
             ContentType.TEXT -> !sharedText.isNullOrBlank()
-            ContentType.IMAGE -> !sharedImageUri.isNullOrBlank()
+            ContentType.IMAGE -> sharedImageUris.isNotEmpty()
         }
 }

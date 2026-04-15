@@ -51,6 +51,9 @@ interface SavedItemStore {
         itemId: Long,
         title: String?,
         note: String?,
+        rawUrl: String? = null,
+        textContent: String? = null,
+        imageUris: List<String>? = null,
     )
 
     suspend fun replaceTags(
@@ -71,8 +74,8 @@ interface SavedItemStore {
         tags: List<String>,
     ): Long
 
-    suspend fun saveImage(
-        imageUri: String,
+    suspend fun saveImages(
+        imageUris: List<String>,
         title: String?,
         note: String?,
         sourceAppPackage: String?,
@@ -146,15 +149,78 @@ class SavedItemRepository(
         itemId: Long,
         title: String?,
         note: String?,
+        rawUrl: String?,
+        textContent: String?,
+        imageUris: List<String>?,
     ) {
         val item = savedItemDao.getById(itemId) ?: return
         val now = Instant.now(clock)
-        savedItemDao.update(
-            item.copy(
-                title = title,
-                note = note,
+        val normalizedTitle = title.normalizeBlank()
+        val normalizedNote = note.normalizeBlank()
+        val normalizedRawUrl = rawUrl.normalizeBlank()
+        val normalizedTextContent = textContent.normalizeBlank()
+        val normalizedImageUris = imageUris?.normalizeImageUris()
+        val existingAutoTagNames = listOfNotNull(
+            item.sourceDomain,
+            item.sourcePlatform,
+            item.topicCategory,
+        ).map(String::lowercase).toSet()
+        val explicitTags = getTags(itemId).filterNot { it.lowercase() in existingAutoTagNames }
+        val updatedItem = when (item.contentType) {
+            ContentType.LINK -> {
+                val updatedCanonicalUrl = normalizedRawUrl?.let(UrlCanonicalizer::canonicalize)
+                val updatedSourceDomain = updatedCanonicalUrl?.toHttpUrlOrNull()?.host
+                val updatedSourcePlatform = SourcePlatformClassifier.classify(
+                    packageName = null,
+                    domain = updatedSourceDomain,
+                )
+                val updatedTopicCategory = TopicClassifier.classify(
+                    title = normalizedTitle ?: normalizedTextContent,
+                    domain = updatedSourceDomain,
+                )
+                item.copy(
+                    title = normalizedTitle,
+                    note = normalizedNote,
+                    rawUrl = normalizedRawUrl,
+                    canonicalUrl = updatedCanonicalUrl,
+                    textContent = normalizedTextContent,
+                    sourceDomain = updatedSourceDomain,
+                    sourcePlatform = updatedSourcePlatform,
+                    topicCategory = updatedTopicCategory,
+                    updatedAt = now,
+                )
+            }
+
+            ContentType.TEXT -> {
+                val updatedTopicCategory = TopicClassifier.classify(
+                    title = normalizedTitle ?: normalizedTextContent,
+                    domain = null,
+                )
+                item.copy(
+                    title = normalizedTitle,
+                    note = normalizedNote,
+                    textContent = normalizedTextContent,
+                    topicCategory = updatedTopicCategory,
+                    updatedAt = now,
+                )
+            }
+
+            ContentType.IMAGE -> item.copy(
+                title = normalizedTitle,
+                note = normalizedNote,
+                imageUris = normalizedImageUris?.persisted() ?: item.imageUris,
                 updatedAt = now,
-            ),
+            )
+        }
+        savedItemDao.update(updatedItem)
+        syncTags(
+            itemId = itemId,
+            explicitTags = explicitTags,
+            sourceDomain = updatedItem.sourceDomain,
+            sourcePlatform = updatedItem.sourcePlatform,
+            topicCategory = updatedItem.topicCategory,
+            now = now,
+            replaceExisting = true,
         )
     }
 
@@ -162,12 +228,13 @@ class SavedItemRepository(
         itemId: Long,
         tags: List<String>,
     ) {
+        val item = savedItemDao.getById(itemId) ?: return
         syncTags(
             itemId = itemId,
             explicitTags = tags,
-            sourceDomain = null,
-            sourcePlatform = null,
-            topicCategory = null,
+            sourceDomain = item.sourceDomain,
+            sourcePlatform = item.sourcePlatform,
+            topicCategory = item.topicCategory,
             now = Instant.now(clock),
             replaceExisting = true,
         )
@@ -200,7 +267,7 @@ class SavedItemRepository(
                     rawUrl = request.rawUrl,
                     canonicalUrl = canonicalUrl,
                     textContent = request.textContent,
-                    imageUri = null,
+                    imageUris = emptyList(),
                     sourceAppPackage = request.sourceAppPackage,
                     sourceAppLabel = request.sourceAppLabel,
                     sourcePlatform = sourcePlatform,
@@ -268,15 +335,15 @@ class SavedItemRepository(
         contentType = ContentType.TEXT,
         title = title,
         textContent = text,
-        imageUri = null,
+        imageUris = emptyList(),
         note = note,
         sourceAppPackage = sourceAppPackage,
         sourceAppLabel = sourceAppLabel,
         tags = tags,
     )
 
-    override suspend fun saveImage(
-        imageUri: String,
+    override suspend fun saveImages(
+        imageUris: List<String>,
         title: String?,
         note: String?,
         sourceAppPackage: String?,
@@ -286,7 +353,7 @@ class SavedItemRepository(
         contentType = ContentType.IMAGE,
         title = title,
         textContent = null,
-        imageUri = imageStore.persist(imageUri),
+        imageUris = imageUris.normalizeImageUris().persisted(),
         note = note,
         sourceAppPackage = sourceAppPackage,
         sourceAppLabel = sourceAppLabel,
@@ -297,7 +364,7 @@ class SavedItemRepository(
         contentType: ContentType,
         title: String?,
         textContent: String?,
-        imageUri: String?,
+        imageUris: List<String>,
         note: String?,
         sourceAppPackage: String?,
         sourceAppLabel: String?,
@@ -316,7 +383,7 @@ class SavedItemRepository(
                 rawUrl = null,
                 canonicalUrl = null,
                 textContent = textContent,
-                imageUri = imageUri,
+                imageUris = imageUris,
                 sourceAppPackage = sourceAppPackage,
                 sourceAppLabel = sourceAppLabel,
                 sourcePlatform = sourcePlatform,
@@ -406,4 +473,16 @@ class SavedItemRepository(
     ) {
         val normalizedName: String = label.trim().lowercase()
     }
+
+    private suspend fun List<String>.persisted(): List<String> = buildList(size) {
+        for (uri in this@persisted) {
+            add(imageStore.persist(uri))
+        }
+    }
 }
+
+private fun String?.normalizeBlank(): String? = this?.trim()?.ifBlank { null }
+
+private fun List<String>.normalizeImageUris(): List<String> = map(String::trim)
+    .filter(String::isNotBlank)
+    .distinct()
