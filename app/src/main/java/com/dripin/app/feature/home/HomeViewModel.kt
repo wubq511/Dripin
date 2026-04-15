@@ -22,6 +22,9 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val filterState: HomeFilterState = HomeFilterState(),
     val items: List<SavedItemEntity> = emptyList(),
+    val totalCount: Int = 0,
+    val unreadCount: Int = 0,
+    val queuedCount: Int = 0,
 )
 
 class HomeViewModel(
@@ -36,9 +39,13 @@ class HomeViewModel(
     init {
         scope.launch {
             combine(repository.observeItems(), filterState) { items, filters ->
+                val filteredItems = items.filterWith(filters)
                 HomeUiState(
                     filterState = filters,
-                    items = items.filterWith(filters),
+                    items = filteredItems,
+                    totalCount = items.size,
+                    unreadCount = items.count { !it.isRead },
+                    queuedCount = items.count { it.pushCount == 0 },
                 )
             }.collect { state -> _uiState.value = state }
         }

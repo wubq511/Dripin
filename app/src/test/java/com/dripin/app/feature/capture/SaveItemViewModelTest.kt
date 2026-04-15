@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SaveItemViewModelTest {
@@ -45,6 +47,37 @@ class SaveItemViewModelTest {
 
         assertEquals("Manual Title", viewModel.uiState.value.title)
         assertEquals("GitHub", viewModel.uiState.value.sourcePlatform)
+    }
+
+    @Test
+    fun manual_entry_requires_content_before_save_becomes_available() = runBlocking {
+        val viewModel = SaveItemViewModel(
+            initialPayload = IncomingSharePayload(
+                contentType = ContentType.LINK,
+                isManualEntry = true,
+            ),
+            metadataFetcher = LinkMetadataReader { null },
+            repository = FakeSavedItemStore(),
+            sourcePlatformClassifier = SourcePlatformClassifier,
+            topicClassifier = TopicClassifier,
+            savedStateHandle = SavedStateHandle(),
+            workerDispatcher = Dispatchers.Unconfined,
+        )
+
+        assertTrue(viewModel.uiState.value.isManualEntry)
+        assertFalse(viewModel.uiState.value.canSave)
+
+        viewModel.onSharedUrlChanged("https://mp.weixin.qq.com/s/abc123")
+        delay(10)
+
+        assertTrue(viewModel.uiState.value.canSave)
+        assertEquals("微信", viewModel.uiState.value.sourcePlatform)
+
+        viewModel.setContentType(ContentType.TEXT)
+        assertFalse(viewModel.uiState.value.canSave)
+
+        viewModel.onSharedTextChanged("手工补一段稍后再看")
+        assertTrue(viewModel.uiState.value.canSave)
     }
 
     private class FakeSavedItemStore : SavedItemStore {
@@ -80,6 +113,7 @@ class SaveItemViewModelTest {
             title: String?,
             note: String?,
             sourceAppPackage: String?,
+            sourceAppLabel: String?,
             tags: List<String>,
         ): Long = 2L
 
@@ -88,6 +122,7 @@ class SaveItemViewModelTest {
             title: String?,
             note: String?,
             sourceAppPackage: String?,
+            sourceAppLabel: String?,
             tags: List<String>,
         ): Long = 3L
     }

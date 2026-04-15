@@ -24,6 +24,23 @@ class ShareIntentParserTest {
     }
 
     @Test
+    fun parses_mixed_share_text_into_link_and_prefilled_title() {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "OpenAI 发布了新的模型说明\nhttps://x.com/openai/status/1234567890",
+            )
+        }
+
+        val parsed = ShareIntentParser.parse(intent, "com.twitter.android", "X")
+
+        assertEquals(ContentType.LINK, parsed.contentType)
+        assertEquals("https://x.com/openai/status/1234567890", parsed.sharedUrl)
+        assertEquals("OpenAI 发布了新的模型说明", parsed.initialTitle)
+    }
+
+    @Test
     fun parses_image_share_as_image_payload() {
         val uri = Uri.parse("content://media/external/images/media/1")
         val intent = Intent(Intent.ACTION_SEND).apply {

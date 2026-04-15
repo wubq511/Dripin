@@ -4,6 +4,7 @@ import com.dripin.app.core.model.ContentType
 
 data class SaveItemUiState(
     val contentType: ContentType,
+    val isManualEntry: Boolean = false,
     val title: String = "",
     val sharedUrl: String? = null,
     val sharedText: String? = null,
@@ -13,7 +14,8 @@ data class SaveItemUiState(
     val sourceDomain: String? = null,
     val sourcePlatform: String? = null,
     val note: String = "",
-    val tags: List<String> = emptyList(),
+    val autoTags: List<String> = emptyList(),
+    val userTags: List<String> = emptyList(),
     val draftTag: String = "",
     val isSaving: Boolean = false,
     val duplicateExistingItemId: Long? = null,
@@ -21,4 +23,11 @@ data class SaveItemUiState(
 ) {
     val saveActionLabel: String
         get() = if (duplicateExistingItemId != null) "更新已有内容" else "保存"
+
+    val canSave: Boolean
+        get() = when (contentType) {
+            ContentType.LINK -> !sharedUrl.isNullOrBlank()
+            ContentType.TEXT -> !sharedText.isNullOrBlank()
+            ContentType.IMAGE -> !sharedImageUri.isNullOrBlank()
+        }
 }

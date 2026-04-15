@@ -3,6 +3,7 @@ package com.dripin.app
 import android.content.Intent
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import com.dripin.app.core.designsystem.component.DripinBackground
 import com.dripin.app.core.designsystem.theme.DripinTheme
 import com.dripin.app.data.repository.RecommendationStore
 import com.dripin.app.data.repository.SavedItemStore
@@ -18,12 +19,14 @@ fun DripinApp(
 ) {
     DripinTheme {
         Surface {
-            DripinNavGraph(
-                repository = repository,
-                settingsRepository = settingsRepository,
-                recommendationRepository = recommendationRepository,
-                launchIntent = launchIntent,
-            )
+            DripinBackground {
+                DripinNavGraph(
+                    repository = repository,
+                    settingsRepository = settingsRepository,
+                    recommendationRepository = recommendationRepository,
+                    launchIntent = launchIntent,
+                )
+            }
         }
     }
 }

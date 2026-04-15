@@ -1,5 +1,7 @@
 package com.dripin.app.data.repository
 
+import android.content.Context
+import android.net.Uri
 import com.dripin.app.core.common.SourcePlatformClassifier
 import com.dripin.app.core.common.TopicClassifier
 import com.dripin.app.core.common.UrlCanonicalizer
@@ -12,7 +14,9 @@ import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.local.entity.TagEntity
 import java.time.Clock
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class LinkSaveRequest(
@@ -63,6 +67,7 @@ interface SavedItemStore {
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long
 
@@ -71,20 +76,56 @@ interface SavedItemStore {
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long
+}
+
+fun interface PersistedImageStore {
+    suspend fun persist(sourceUri: String): String
+}
+
+class ContextPersistedImageStore(
+    private val context: Context,
+) : PersistedImageStore {
+    override suspend fun persist(sourceUri: String): String = withContext(Dispatchers.IO) {
+        if (!sourceUri.startsWith("content://", ignoreCase = true)) {
+            return@withContext sourceUri
+        }
+
+        val source = Uri.parse(sourceUri)
+        val extension = context.contentResolver.getType(source)
+            ?.substringAfter('/', missingDelimiterValue = "")
+            ?.ifBlank { "jpg" }
+            ?: "jpg"
+        val outputDir = context.filesDir.resolve("shared-images").apply { mkdirs() }
+        val outputFile = outputDir.resolve("persisted-${System.currentTimeMillis()}.$extension")
+
+        runCatching {
+            context.contentResolver.openInputStream(source)?.use { input ->
+                outputFile.outputStream().use { output -> input.copyTo(output) }
+            }
+        }.getOrNull()
+
+        if (outputFile.exists()) Uri.fromFile(outputFile).toString() else sourceUri
+    }
 }
 
 class SavedItemRepository(
     private val savedItemDao: SavedItemDao,
     private val tagDao: TagDao,
+    private val imageStore: PersistedImageStore = PersistedImageStore { it },
     private val clock: Clock = Clock.systemUTC(),
 ) : SavedItemStore {
     override fun observeItems(): Flow<List<SavedItemEntity>> = savedItemDao.observeAll()
 
     override suspend fun getItem(itemId: Long): SavedItemEntity? = savedItemDao.getById(itemId)
 
-    override suspend fun getTags(itemId: Long): List<String> = tagDao.getTagsForItem(itemId).map(TagEntity::name)
+    override suspend fun getTags(itemId: Long): List<String> {
+        return tagDao.getTagsForItem(itemId)
+            .map(TagEntity::name)
+            .distinctBy(String::lowercase)
+    }
 
     override suspend fun setReadState(
         itemId: Long,
@@ -221,6 +262,7 @@ class SavedItemRepository(
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long = saveStandaloneItem(
         contentType = ContentType.TEXT,
@@ -229,6 +271,7 @@ class SavedItemRepository(
         imageUri = null,
         note = note,
         sourceAppPackage = sourceAppPackage,
+        sourceAppLabel = sourceAppLabel,
         tags = tags,
     )
 
@@ -237,14 +280,16 @@ class SavedItemRepository(
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long = saveStandaloneItem(
         contentType = ContentType.IMAGE,
         title = title,
         textContent = null,
-        imageUri = imageUri,
+        imageUri = imageStore.persist(imageUri),
         note = note,
         sourceAppPackage = sourceAppPackage,
+        sourceAppLabel = sourceAppLabel,
         tags = tags,
     )
 
@@ -255,6 +300,7 @@ class SavedItemRepository(
         imageUri: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long {
         val topicCategory = TopicClassifier.classify(title = title ?: textContent, domain = null)
@@ -272,7 +318,7 @@ class SavedItemRepository(
                 textContent = textContent,
                 imageUri = imageUri,
                 sourceAppPackage = sourceAppPackage,
-                sourceAppLabel = null,
+                sourceAppLabel = sourceAppLabel,
                 sourcePlatform = sourcePlatform,
                 sourceDomain = null,
                 topicCategory = topicCategory,
@@ -313,18 +359,23 @@ class SavedItemRepository(
             sourceDomain?.takeIf(String::isNotBlank)?.let { add(TagDraft(it, TagType.SOURCE_DOMAIN)) }
             sourcePlatform?.takeIf(String::isNotBlank)?.let { add(TagDraft(it, TagType.SOURCE_PLATFORM)) }
             topicCategory?.takeIf(String::isNotBlank)?.let { add(TagDraft(it, TagType.TOPIC)) }
-            explicitTags
-                .map(String::trim)
-                .filter(String::isNotBlank)
-                .forEach { add(TagDraft(it, TagType.USER)) }
-        }.distinctBy { it.normalizedName to it.type }
+        }
+        val autoTagNames = autoTags.map(TagDraft::normalizedName).toSet()
+        val userTags = explicitTags
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .map { TagDraft(label = it, type = TagType.USER) }
+            .distinctBy(TagDraft::normalizedName)
+            .filterNot { it.normalizedName in autoTagNames }
+
+        val mergedTags = (autoTags + userTags).distinctBy { it.normalizedName to it.type }
 
         if (replaceExisting) {
             tagDao.deleteCrossRefsForItem(itemId)
         }
-        if (autoTags.isEmpty()) return
+        if (mergedTags.isEmpty()) return
 
-        val tagIds = autoTags.map { draft ->
+        val tagIds = mergedTags.map { draft ->
             val insertedId = tagDao.insert(
                 TagEntity(
                     name = draft.label,

@@ -99,7 +99,13 @@ class DetailViewModel(
     private fun refresh() {
         scope.launch {
             val item = repository.getItem(itemId) ?: return@launch
+            val autoTagNames = listOfNotNull(
+                item.sourceDomain,
+                item.sourcePlatform,
+                item.topicCategory,
+            ).map(String::lowercase).toSet()
             val tags = repository.getTags(itemId)
+                .filterNot { it.lowercase() in autoTagNames }
             _uiState.value = DetailUiState(
                 item = item,
                 tags = tags,

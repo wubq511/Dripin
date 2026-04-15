@@ -72,6 +72,7 @@ private class FakeSavedItemStore(
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long = 2L
 
@@ -80,6 +81,7 @@ private class FakeSavedItemStore(
         title: String?,
         note: String?,
         sourceAppPackage: String?,
+        sourceAppLabel: String?,
         tags: List<String>,
     ): Long = 3L
 

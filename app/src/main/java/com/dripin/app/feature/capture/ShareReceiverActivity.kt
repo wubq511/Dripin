@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.dripin.app.core.designsystem.theme.DripinTheme
 import com.dripin.app.data.local.AppDatabase
 import com.dripin.app.data.metadata.LinkMetadataFetcher
+import com.dripin.app.data.repository.ContextPersistedImageStore
 import com.dripin.app.data.repository.SavedItemRepository
 import okhttp3.OkHttpClient
 
@@ -19,6 +20,7 @@ class ShareReceiverActivity : ComponentActivity() {
         SavedItemRepository(
             savedItemDao = database.savedItemDao(),
             tagDao = database.tagDao(),
+            imageStore = ContextPersistedImageStore(applicationContext),
         )
     }
 
@@ -28,11 +30,12 @@ class ShareReceiverActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val sourcePackage = callingPackage ?: referrer?.host
 
         val payload = ShareIntentParser.parse(
             intent = intent,
-            sourcePackage = callingPackage,
-            sourceLabel = null,
+            sourcePackage = sourcePackage,
+            sourceLabel = sourcePackage?.let(::resolveSourceLabel),
         )
         val viewModel = ViewModelProvider(
             this,
@@ -47,9 +50,16 @@ class ShareReceiverActivity : ComponentActivity() {
             DripinTheme {
                 SaveItemScreen(
                     viewModel = viewModel,
-                    onDone = { finish() },
+                    onDone = { finishAndRemoveTask() },
                 )
             }
         }
+    }
+
+    private fun resolveSourceLabel(packageName: String): String? {
+        return runCatching {
+            val applicationInfo = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(applicationInfo).toString()
+        }.getOrNull()
     }
 }

@@ -64,7 +64,7 @@ class SaveItemViewModel(
 
         _uiState.update { state ->
             state.copy(
-                tags = (state.tags + tag).distinctBy { it.lowercase(Locale.getDefault()) },
+                userTags = (state.userTags + tag).distinctBy { it.lowercase(Locale.getDefault()) },
                 draftTag = "",
             )
         }
@@ -72,12 +72,52 @@ class SaveItemViewModel(
 
     fun removeTag(tag: String) {
         _uiState.update { state ->
-            state.copy(tags = state.tags.filterNot { it.equals(tag, ignoreCase = true) })
+            state.copy(userTags = state.userTags.filterNot { it.equals(tag, ignoreCase = true) })
+        }
+    }
+
+    fun setContentType(contentType: ContentType) {
+        if (uiState.value.contentType == contentType) return
+
+        _uiState.update { current ->
+            deriveState(current.copy(contentType = contentType))
+                .copy(duplicateExistingItemId = null)
+        }
+        refreshDuplicateState()
+        fetchMetadataIfNeeded()
+    }
+
+    fun onSharedUrlChanged(value: String) {
+        if (!hasUserEditedTitle) {
+            savedStateHandle["title"] = ""
+        }
+        _uiState.update { current ->
+            deriveState(
+                current.copy(
+                    sharedUrl = value.trim().ifBlank { null },
+                    title = if (hasUserEditedTitle) current.title else "",
+                    duplicateExistingItemId = null,
+                ),
+            )
+        }
+        refreshDuplicateState()
+        fetchMetadataIfNeeded()
+    }
+
+    fun onSharedTextChanged(value: String) {
+        _uiState.update { current ->
+            deriveState(current.copy(sharedText = value.ifBlank { null }))
+        }
+    }
+
+    fun onSharedImageUriChanged(value: String?) {
+        _uiState.update { current ->
+            deriveState(current.copy(sharedImageUri = value))
         }
     }
 
     fun save() {
-        if (_uiState.value.isSaving) return
+        if (_uiState.value.isSaving || !_uiState.value.canSave) return
 
         scope.launch {
             _uiState.update { it.copy(isSaving = true) }
@@ -94,7 +134,7 @@ class SaveItemViewModel(
                             note = state.note.ifBlank { null },
                             sourceAppPackage = state.sourceAppPackage,
                             sourceAppLabel = state.sourceAppLabel,
-                            tags = state.tags,
+                            tags = state.userTags,
                         ),
                     )
                     val itemId = when (result) {
@@ -117,7 +157,8 @@ class SaveItemViewModel(
                         title = state.title.ifBlank { null },
                         note = state.note.ifBlank { null },
                         sourceAppPackage = state.sourceAppPackage,
-                        tags = state.tags,
+                        sourceAppLabel = state.sourceAppLabel,
+                        tags = state.userTags,
                     )
                     _uiState.update { it.copy(isSaving = false, completedItemId = itemId) }
                 }
@@ -128,7 +169,8 @@ class SaveItemViewModel(
                         title = state.title.ifBlank { null },
                         note = state.note.ifBlank { null },
                         sourceAppPackage = state.sourceAppPackage,
-                        tags = state.tags,
+                        sourceAppLabel = state.sourceAppLabel,
+                        tags = state.userTags,
                     )
                     _uiState.update { it.copy(isSaving = false, completedItemId = itemId) }
                 }
@@ -142,38 +184,27 @@ class SaveItemViewModel(
     }
 
     private fun initialState(payload: IncomingSharePayload): SaveItemUiState {
-        val sourceDomain = payload.sharedUrl?.toHttpUrlOrNull()?.host
-        val sourcePlatform = sourcePlatformClassifier.classify(
-            packageName = payload.sourceAppPackage,
-            domain = sourceDomain,
-        )
-        val topicCategory = topicClassifier.classify(
-            title = payload.sharedText,
-            domain = sourceDomain,
-        )
-        val tags = buildList {
-            sourceDomain?.let(::add)
-            sourcePlatform?.let(::add)
-            topicCategory?.let(::add)
-        }.distinct()
-
-        return SaveItemUiState(
-            contentType = payload.contentType,
-            title = "",
-            sharedUrl = payload.sharedUrl,
-            sharedText = payload.sharedText,
-            sharedImageUri = payload.sharedImageUri,
-            sourceAppPackage = payload.sourceAppPackage,
-            sourceAppLabel = payload.sourceAppLabel,
-            sourceDomain = sourceDomain,
-            sourcePlatform = sourcePlatform,
-            tags = tags,
-            note = "",
+        return deriveState(
+            SaveItemUiState(
+                contentType = payload.contentType,
+                isManualEntry = payload.isManualEntry,
+                title = payload.initialTitle.orEmpty(),
+                sharedUrl = payload.sharedUrl,
+                sharedText = payload.sharedText,
+                sharedImageUri = payload.sharedImageUri,
+                sourceAppPackage = payload.sourceAppPackage,
+                sourceAppLabel = payload.sourceAppLabel,
+                note = "",
+            ),
         )
     }
 
     private fun refreshDuplicateState() {
-        val url = uiState.value.sharedUrl ?: return
+        val url = uiState.value.sharedUrl
+        if (url.isNullOrBlank() || uiState.value.contentType != ContentType.LINK) {
+            _uiState.update { it.copy(duplicateExistingItemId = null) }
+            return
+        }
         scope.launch {
             val existingItemId = repository.findExistingLinkId(url)
             _uiState.update { it.copy(duplicateExistingItemId = existingItemId) }
@@ -187,19 +218,39 @@ class SaveItemViewModel(
         if (state.title.isNotBlank()) return
 
         scope.launch {
-            val metadata = metadataFetcher.fetch(state.sharedUrl) ?: return@launch
             if (hasUserEditedTitle) return@launch
-            val fetchedTitle = metadata.title?.trim().orEmpty()
-            if (fetchedTitle.isBlank()) return@launch
+            val metadata = metadataFetcher.fetch(state.sharedUrl)
+            val fetchedTitle = metadata?.title?.trim().orEmpty()
+            val fallbackTitle = state.sourcePlatform?.let { "$it 内容" } ?: state.sourceDomain
+            val resolvedTitle = fetchedTitle.ifBlank { fallbackTitle.orEmpty() }
+            if (resolvedTitle.isBlank()) return@launch
 
             _uiState.update { current ->
                 if (hasUserEditedTitle || current.title.isNotBlank()) {
                     current
                 } else {
-                    current.copy(title = fetchedTitle)
+                    current.copy(title = resolvedTitle)
                 }
             }
         }
+    }
+
+    private fun deriveState(state: SaveItemUiState): SaveItemUiState {
+        val sourceDomain = state.sharedUrl?.toHttpUrlOrNull()?.host
+        val sourcePlatform = sourcePlatformClassifier.classify(
+            packageName = state.sourceAppPackage,
+            domain = sourceDomain,
+        )
+        val topicCategory = topicClassifier.classify(
+            title = state.title.takeIf(String::isNotBlank) ?: state.sharedText,
+            domain = sourceDomain,
+        )
+
+        return state.copy(
+            sourceDomain = sourceDomain,
+            sourcePlatform = sourcePlatform,
+            autoTags = listOfNotNull(sourceDomain, sourcePlatform, topicCategory).distinct(),
+        )
     }
 
     class Factory(

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,7 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dripin.app.core.designsystem.component.DripinHero
+import com.dripin.app.core.designsystem.component.DripinPanel
 import com.dripin.app.core.designsystem.component.FilterChipRow
+import com.dripin.app.core.designsystem.component.MetaChip
 import com.dripin.app.core.designsystem.component.SectionCard
 import com.dripin.app.core.model.RecommendationSortMode
 import java.time.LocalTime
@@ -90,87 +94,96 @@ fun SettingsScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 140.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
+            DripinHero(
+                eyebrow = "Rhythm",
+                title = "把提醒调成\n你自己的节奏",
+                subtitle = "克制、稳定、不打扰。",
+                badge = if (uiState.notificationsEnabled) "已开启" else "已关闭",
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetaChip(text = "时间 ${uiState.dailyPushTime.format(timeFormatter)}")
+                    MetaChip(text = "数量 ${uiState.dailyPushCount}")
+                }
+            }
+        }
+
+        item {
             SectionCard(title = "推送节奏") {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SettingSwitchRow(
-                        title = "开启每日提醒",
-                        body = "在本地定时生成一批今日推荐。",
-                        checked = uiState.notificationsEnabled,
-                        onCheckedChange = viewModel::setNotificationsEnabled,
-                    )
-                    AnimatedVisibility(
-                        visible = uiState.notificationsEnabled,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            SettingValueRow(
-                                title = "提醒时间",
-                                body = "当前时间 ${uiState.dailyPushTime.format(timeFormatter)}",
-                                actionLabel = "修改",
-                                onActionClick = { showTimePicker = true },
+                SettingSwitchRow(
+                    title = "开启每日提醒",
+                    body = "本地定时生成今日推荐",
+                    checked = uiState.notificationsEnabled,
+                    onCheckedChange = viewModel::setNotificationsEnabled,
+                )
+                AnimatedVisibility(
+                    visible = uiState.notificationsEnabled,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SettingValueRow(
+                            title = "提醒时间",
+                            body = uiState.dailyPushTime.format(timeFormatter),
+                            actionLabel = "修改",
+                            onActionClick = { showTimePicker = true },
+                        )
+                        DripinPanel(
+                            accentColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
+                        ) {
+                            Text(
+                                text = "每日数量 ${pushCountDraft.roundToInt()} 条",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium,
                             )
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(
-                                    text = "每日数量 ${pushCountDraft.roundToInt()} 条",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Slider(
-                                    value = pushCountDraft,
-                                    onValueChange = { pushCountDraft = it },
-                                    valueRange = 1f..10f,
-                                    steps = 8,
-                                    onValueChangeFinished = {
-                                        viewModel.setDailyPushCount(pushCountDraft.roundToInt())
-                                    },
-                                )
-                                Text(
-                                    text = "默认从未读内容里抽取，数量控制在 1 到 10 条之间。",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Slider(
+                                value = pushCountDraft,
+                                onValueChange = { pushCountDraft = it },
+                                valueRange = 1f..10f,
+                                steps = 8,
+                                onValueChangeFinished = {
+                                    viewModel.setDailyPushCount(pushCountDraft.roundToInt())
+                                },
+                            )
                         }
                     }
-                    AnimatedVisibility(visible = !uiState.notificationsEnabled) {
-                        Text(
-                            text = "提醒关闭时，应用仍会保留你的节奏设置，但不会生成下一次计划任务。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                }
+                AnimatedVisibility(visible = !uiState.notificationsEnabled) {
+                    Text(
+                        text = "提醒关闭时，不会安排下一次推荐。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
 
         item {
             SectionCard(title = "推荐策略") {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SettingSwitchRow(
-                        title = "允许重复推荐未读内容",
-                        body = "关闭后，只推荐从未推送过的未读内容。",
-                        checked = uiState.repeatPushedUnreadItems,
-                        onCheckedChange = viewModel::setRepeatUnreadPushedItems,
+                SettingSwitchRow(
+                    title = "允许重复推荐未读内容",
+                    body = "关闭后只推未推送过的未读内容",
+                    checked = uiState.repeatPushedUnreadItems,
+                    onCheckedChange = viewModel::setRepeatUnreadPushedItems,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "排序偏好",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
                     )
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "排序偏好",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        FilterChipRow(
-                            options = RecommendationSortMode.entries,
-                            selected = uiState.recommendationSortMode,
-                            labelOf = RecommendationSortMode::label,
-                            onSelected = viewModel::setRecommendationSortMode,
-                        )
-                    }
+                    FilterChipRow(
+                        options = RecommendationSortMode.entries,
+                        selected = uiState.recommendationSortMode,
+                        labelOf = RecommendationSortMode::label,
+                        onSelected = viewModel::setRecommendationSortMode,
+                    )
                 }
             }
         }
@@ -178,7 +191,7 @@ fun SettingsScreen(
         item {
             SectionCard(title = "本地优先") {
                 Text(
-                    text = "所有内容、标签和提醒偏好都保存在本机。联网仅用于尝试补全链接标题，失败时回退为空或域名。",
+                    text = "内容、标签和提醒偏好都保存在本机。联网仅用于补全链接标题。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
