@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#E8E0D2</color>
+    <!-- 深墨绿色背景，与PNG图标背景完全一致 -->
+    <color name="ic_launcher_background">#3D6B63</color>
 </resources>
