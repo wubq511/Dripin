@@ -3,12 +3,16 @@ package com.dripin.app.feature.capture
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.ViewModelProvider
-import com.dripin.app.core.designsystem.theme.DripinTheme
+import com.example.dripin4.ui.app.DripRuntimeApp
 import com.dripin.app.data.local.AppDatabase
 import com.dripin.app.data.metadata.LinkMetadataFetcher
+import com.dripin.app.data.preferences.UserPreferencesRepository
+import com.dripin.app.data.preferences.userPreferencesDataStore
 import com.dripin.app.data.repository.ContextPersistedImageStore
+import com.dripin.app.data.repository.RecommendationRepository
 import com.dripin.app.data.repository.SavedItemRepository
+import com.dripin.app.data.repository.SettingsRepository
+import com.dripin.app.worker.DailyRecommendationScheduler
 import okhttp3.OkHttpClient
 
 class ShareReceiverActivity : ComponentActivity() {
@@ -28,6 +32,20 @@ class ShareReceiverActivity : ComponentActivity() {
         LinkMetadataFetcher(OkHttpClient())
     }
 
+    private val settingsRepository by lazy {
+        SettingsRepository(
+            preferencesRepository = UserPreferencesRepository(applicationContext.userPreferencesDataStore),
+            scheduler = DailyRecommendationScheduler.create(applicationContext),
+        )
+    }
+
+    private val recommendationRepository by lazy {
+        RecommendationRepository(
+            savedItemDao = database.savedItemDao(),
+            recommendationDao = database.dailyRecommendationDao(),
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val sourcePackage = callingPackage ?: referrer?.host
@@ -37,22 +55,16 @@ class ShareReceiverActivity : ComponentActivity() {
             sourcePackage = sourcePackage,
             sourceLabel = sourcePackage?.let(::resolveSourceLabel),
         )
-        val viewModel = ViewModelProvider(
-            this,
-            SaveItemViewModel.Factory(
-                initialPayload = payload,
-                metadataFetcher = metadataFetcher,
-                repository = repository,
-            ),
-        )[SaveItemViewModel::class.java]
 
         setContent {
-            DripinTheme {
-                SaveItemScreen(
-                    viewModel = viewModel,
-                    onDone = { finishAndRemoveTask() },
-                )
-            }
+            DripRuntimeApp(
+                repository = repository,
+                settingsRepository = settingsRepository,
+                recommendationRepository = recommendationRepository,
+                metadataFetcher = metadataFetcher,
+                initialCapturePayload = payload,
+                onCaptureFinished = { finishAndRemoveTask() },
+            )
         }
     }
 

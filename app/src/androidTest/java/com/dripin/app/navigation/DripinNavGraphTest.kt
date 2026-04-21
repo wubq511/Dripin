@@ -13,8 +13,8 @@ class DripinNavGraphTest {
 
     @Test
     fun showsPrimaryRouteLabelsOnLaunch() {
-        composeRule.onNodeWithTag("nav-home").assertIsDisplayed()
-        composeRule.onNodeWithTag("nav-today").assertIsDisplayed()
-        composeRule.onNodeWithTag("nav-settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_inbox").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_today").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab_settings").assertIsDisplayed()
     }
 }

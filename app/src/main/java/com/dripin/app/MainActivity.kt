@@ -3,17 +3,22 @@ package com.dripin.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
+import com.example.dripin4.ui.app.DripRuntimeApp
 import com.dripin.app.data.local.AppDatabase
+import com.dripin.app.data.metadata.LinkMetadataFetcher
 import com.dripin.app.data.preferences.UserPreferencesRepository
 import com.dripin.app.data.preferences.userPreferencesDataStore
+import com.dripin.app.data.repository.ContextPersistedImageStore
 import com.dripin.app.data.repository.RecommendationRepository
 import com.dripin.app.data.repository.SavedItemRepository
 import com.dripin.app.data.repository.SettingsRepository
 import com.dripin.app.worker.DailyRecommendationScheduler
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 class MainActivity : ComponentActivity() {
     private val launchIntentState = mutableStateOf<Intent?>(null)
@@ -26,6 +31,7 @@ class MainActivity : ComponentActivity() {
         SavedItemRepository(
             savedItemDao = database.savedItemDao(),
             tagDao = database.tagDao(),
+            imageStore = ContextPersistedImageStore(applicationContext),
         )
     }
 
@@ -43,17 +49,23 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val metadataFetcher by lazy {
+        LinkMetadataFetcher(OkHttpClient())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         launchIntentState.value = intent
         lifecycleScope.launch {
             settingsRepository.syncSchedule()
         }
         setContent {
-            DripinApp(
+            DripRuntimeApp(
                 repository = repository,
                 settingsRepository = settingsRepository,
                 recommendationRepository = recommendationRepository,
+                metadataFetcher = metadataFetcher,
                 launchIntent = launchIntentState.value,
             )
         }
