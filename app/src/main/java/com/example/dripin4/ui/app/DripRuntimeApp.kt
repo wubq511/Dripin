@@ -166,8 +166,8 @@ fun DripRuntimeApp(
                 ).editor.copy(visible = detailEditorVisible),
             )
         } else {
-            appState.toDetailScreenState().copy(
-                editor = appState.toDetailScreenState().editor.copy(visible = detailEditorVisible),
+            emptyDetailScreenState().copy(
+                editor = emptyDetailScreenState().editor.copy(visible = detailEditorVisible),
             )
         }
     }
@@ -193,20 +193,33 @@ fun DripRuntimeApp(
         )
     }
 
-    val filteredInboxItems = remember(inboxItems, appState.selectedFilter) {
-        when (appState.selectedFilter) {
-            InboxFilter.All -> inboxItems
-            InboxFilter.Article -> inboxItems.filter { it.kind == InboxKind.Article }
-            InboxFilter.Video -> inboxItems.filter { it.kind == InboxKind.Video }
-            InboxFilter.Image -> inboxItems.filter { it.kind == InboxKind.Image }
-            InboxFilter.Thread -> inboxItems.filter { it.kind == InboxKind.Thread }
-            InboxFilter.Audio -> emptyList()
-        }
+    val filteredInboxItems = remember(
+        inboxItems,
+        appState.selectedContentFilter,
+        appState.selectedReadFilter,
+        appState.selectedPushFilter,
+    ) {
+        inboxItems.filterWith(
+            contentFilter = appState.selectedContentFilter,
+            readFilter = appState.selectedReadFilter,
+            pushFilter = appState.selectedPushFilter,
+        )
     }
-    val inboxState = remember(inboxItems, filteredInboxItems, appState.selectedFilter) {
+    val inboxState = remember(
+        inboxItems,
+        filteredInboxItems,
+        appState.selectedContentFilter,
+        appState.selectedReadFilter,
+        appState.selectedPushFilter,
+    ) {
         InboxScreenState(
-            filters = appState.inboxFilters,
-            selectedFilter = appState.selectedFilter,
+            contentFilters = appState.inboxFilters,
+            selectedContentFilter = appState.selectedContentFilter,
+            readFilters = appState.inboxReadFilters,
+            selectedReadFilter = appState.selectedReadFilter,
+            pushFilters = appState.inboxPushFilters,
+            selectedPushFilter = appState.selectedPushFilter,
+            hasActiveFilters = appState.hasActiveInboxFilters(),
             items = filteredInboxItems,
         )
     }
@@ -266,7 +279,9 @@ fun DripRuntimeApp(
             captureState = captureState,
             detailState = detailState,
             settingsState = settingsState,
-            onInboxFilterSelected = appState::setInboxFilter,
+            onInboxContentFilterSelected = appState::toggleInboxContentFilter,
+            onInboxReadFilterSelected = appState::setInboxReadFilter,
+            onInboxPushFilterSelected = appState::setInboxPushFilter,
             onOpenDetail = { itemId ->
                 selectedDetailId = itemId
                 detailEditorVisible = false

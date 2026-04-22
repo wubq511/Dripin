@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,8 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
+import com.dripin.app.core.designsystem.component.ExpandableImagePreview
 import com.dripin.app.core.model.ContentType
 import com.example.dripin4.ui.app.DetailScreenState
 import com.example.dripin4.ui.content.DripStrings
@@ -34,6 +37,7 @@ import com.example.dripin4.ui.designsystem.components.GlassField
 import com.example.dripin4.ui.designsystem.components.GlassHeroAccent
 import com.example.dripin4.ui.designsystem.components.GlassHeroHeader
 import com.example.dripin4.ui.designsystem.components.GlassInfoPill
+import com.example.dripin4.ui.designsystem.components.GlassPageHeader
 import com.example.dripin4.ui.designsystem.components.GlassPanel
 import com.example.dripin4.ui.designsystem.components.GlassScaffold
 import com.example.dripin4.ui.designsystem.components.GlassSectionHeading
@@ -58,34 +62,49 @@ fun DetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val item = state.item
+    val subtitleParts = listOf(item.source, item.time).filter(String::isNotBlank)
+    val hasHeaderContent = item.title.isNotBlank() || subtitleParts.isNotEmpty() || item.tag.isNotBlank()
+    val previewText = state.textContent?.takeIf(String::isNotBlank) ?: state.rawUrl?.takeIf(String::isNotBlank)
+    val hasPreviewContent = when (state.contentType) {
+        ContentType.IMAGE -> state.imageUris.isNotEmpty()
+        else -> !previewText.isNullOrBlank()
+    }
+    val hasMetaContent = state.noteBody.isNotBlank()
+    val hasDetailContent = hasHeaderContent || hasPreviewContent || hasMetaContent || state.primaryActionEnabled
 
     GlassScaffold(
         testTag = "screen_detail",
         modifier = modifier,
         header = {
-            GlassHeroHeader(
-                eyebrow = DripStrings.DetailTitle,
-                title = item.title,
-                subtitle = "${item.source} · ${item.time}",
-                accent = GlassHeroAccent.Ink,
-                metaAtStart = true,
-                meta = DripStrings.inboxKindLabel(item.kind),
-                supportingContent = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall)) {
-                        GlassInfoPill(
-                            text = item.tag,
-                            tint = GlassPalette.AccentMint,
-                        )
-                        GlassInfoPill(
-                            text = if (state.editor.isRead) "已读" else "未读",
-                            tint = GlassPalette.TextTodaySelection,
-                        )
-                    }
-                },
-            )
+            if (hasHeaderContent) {
+                GlassHeroHeader(
+                    eyebrow = DripStrings.DetailTitle,
+                    title = item.title,
+                    subtitle = subtitleParts.joinToString(" · "),
+                    accent = GlassHeroAccent.Ink,
+                    metaAtStart = true,
+                    meta = DripStrings.inboxKindLabel(item.kind),
+                    supportingContent = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall)) {
+                            if (item.tag.isNotBlank()) {
+                                GlassInfoPill(
+                                    text = item.tag,
+                                    tint = GlassPalette.AccentMint,
+                                )
+                            }
+                            GlassInfoPill(
+                                text = if (state.editor.isRead) "已读" else "未读",
+                                tint = GlassPalette.TextTodaySelection,
+                            )
+                        }
+                    },
+                )
+            } else {
+                GlassPageHeader(title = DripStrings.DetailTitle)
+            }
         },
     ) {
-        item("detail_preview") {
+        if (hasPreviewContent) item("detail_preview") {
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 tone = GlassCardTone.Neutral,
@@ -96,44 +115,39 @@ fun DetailScreen(
                 GlassPanel {
                     when (state.contentType) {
                         ContentType.IMAGE -> {
-                            Text(
-                                text = if (state.imageUris.isEmpty()) "暂无图片预览" else "共 ${state.imageUris.size} 张图片",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = DripColors.Graphite,
-                            )
-                        }
-
-                        else -> {
-                            val previewText = state.textContent ?: state.rawUrl ?: state.noteBody
-                            if (previewText.isBlank()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp)
-                                        .background(
-                                            Brush.linearGradient(
-                                                listOf(
-                                                    GlassPalette.TodayItemInnerBgStart,
-                                                    GlassPalette.TodayItemInnerBgMid,
-                                                    GlassPalette.TodayItemInnerBgEnd,
-                                                ),
-                                            ),
-                                        ),
-                                )
-                            } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.Small)) {
                                 Text(
-                                    text = previewText,
+                                    text = "共 ${state.imageUris.size} 张图片",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = DripColors.Graphite,
                                 )
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
+                                ) {
+                                    state.imageUris.forEachIndexed { index, imageUri ->
+                                        DetailPreviewImageCard(
+                                            imageUri = imageUri,
+                                            index = index,
+                                        )
+                                    }
+                                }
                             }
+                        }
+
+                        else -> {
+                            Text(
+                                text = checkNotNull(previewText),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = DripColors.Graphite,
+                            )
                         }
                     }
                 }
             }
         }
 
-        item("detail_meta") {
+        if (hasMetaContent) item("detail_meta") {
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
                 tone = GlassCardTone.Neutral,
@@ -143,7 +157,7 @@ fun DetailScreen(
                 Spacer(modifier = Modifier.height(DripSpacing.Small))
                 GlassPanel {
                     Text(
-                        text = state.noteBody.ifBlank { "还没有备注" },
+                        text = state.noteBody,
                         style = MaterialTheme.typography.bodyMedium,
                         color = DripColors.Graphite,
                     )
@@ -151,7 +165,7 @@ fun DetailScreen(
             }
         }
 
-        item("detail_actions") {
+        if (hasDetailContent) item("detail_actions") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DripSpacing.Small),
@@ -278,10 +292,10 @@ private fun DetailEditorDialog(
                             horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
                         ) {
                             state.editor.imageUris.forEachIndexed { index, imageUri ->
-                                GlassChip(
-                                    text = "图片 ${index + 1}",
-                                    selected = true,
-                                    onClick = { onRemoveImage(imageUri) },
+                                DetailEditableImageCard(
+                                    imageUri = imageUri,
+                                    index = index,
+                                    onRemove = { onRemoveImage(imageUri) },
                                 )
                             }
                         }
@@ -350,6 +364,52 @@ private fun DetailEditorDialog(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailPreviewImageCard(
+    imageUri: String,
+    index: Int,
+) {
+    ExpandableImagePreview(
+        imageUri = imageUri,
+        contentDescription = "详情图片预览 ${index + 1}",
+        modifier = Modifier
+            .width(168.dp)
+            .testTag("detail_image_preview_${index + 1}"),
+        height = 168.dp,
+    )
+}
+
+@Composable
+private fun DetailEditableImageCard(
+    imageUri: String,
+    index: Int,
+    onRemove: () -> Unit,
+) {
+    GlassPanel(
+        modifier = Modifier.width(176.dp),
+        contentPadding = PaddingValues(12.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.Small)) {
+            ExpandableImagePreview(
+                imageUri = imageUri,
+                contentDescription = "编辑图片预览 ${index + 1}",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("detail_editor_image_preview_${index + 1}"),
+                height = 140.dp,
+            )
+            GlassButton(
+                text = "删除",
+                onClick = onRemove,
+                style = GlassButtonStyle.Secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("detail_editor_remove_image_${index + 1}"),
+            )
         }
     }
 }

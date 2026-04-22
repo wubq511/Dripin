@@ -1,11 +1,18 @@
 package com.example.dripin4.ui.app
 
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.PushFilter
+import com.dripin.app.core.model.ReadFilter
 import com.example.dripin4.ui.content.DripStrings
 
 data class InboxScreenState(
-    val filters: List<InboxFilter>,
-    val selectedFilter: InboxFilter,
+    val contentFilters: List<InboxFilter>,
+    val selectedContentFilter: InboxFilter,
+    val readFilters: List<ReadFilter>,
+    val selectedReadFilter: ReadFilter,
+    val pushFilters: List<PushFilter>,
+    val selectedPushFilter: PushFilter,
+    val hasActiveFilters: Boolean,
     val items: List<InboxItemUi>,
 )
 
@@ -66,8 +73,13 @@ data class SettingsScreenState(
 )
 
 internal fun DripAppState.toInboxScreenState(): InboxScreenState = InboxScreenState(
-    filters = inboxFilters,
-    selectedFilter = selectedFilter,
+    contentFilters = inboxFilters,
+    selectedContentFilter = selectedContentFilter,
+    readFilters = inboxReadFilters,
+    selectedReadFilter = selectedReadFilter,
+    pushFilters = inboxPushFilters,
+    selectedPushFilter = selectedPushFilter,
+    hasActiveFilters = hasActiveInboxFilters(),
     items = filteredInboxItems(),
 )
 
@@ -95,31 +107,68 @@ internal fun DripAppState.toCaptureScreenState(): CaptureScreenState = CaptureSc
     duplicateMessage = null,
 )
 
-internal fun DripAppState.toDetailScreenState(): DetailScreenState = DetailScreenState(
-    item = detailItem,
-    contentType = when (detailItem.kind) {
-        InboxKind.Article, InboxKind.Video -> ContentType.LINK
-        InboxKind.Image -> ContentType.IMAGE
-        InboxKind.Thread -> ContentType.TEXT
-    },
-    noteBody = detailItem.note,
+internal fun emptyDetailScreenState(): DetailScreenState = DetailScreenState(
+    item = InboxItemUi(
+        id = "",
+        title = "",
+        note = "",
+        source = "",
+        time = "",
+        tag = "",
+        kind = InboxKind.Article,
+        contentType = ContentType.LINK,
+        isRead = false,
+        pushCount = 0,
+    ),
+    contentType = ContentType.LINK,
+    noteBody = "",
     rawUrl = null,
-    textContent = detailItem.note,
+    textContent = null,
     imageUris = emptyList(),
-    primaryActionEnabled = true,
+    primaryActionEnabled = false,
     editor = DetailEditorState(
         visible = false,
-        titleDraft = detailItem.title,
-        noteDraft = detailItem.note,
+        titleDraft = "",
+        noteDraft = "",
         rawUrlDraft = "",
-        textContentDraft = detailItem.note,
+        textContentDraft = "",
         imageUris = emptyList(),
-        tags = listOf(detailItem.tag),
+        tags = emptyList(),
         tagDraft = "",
-        canSave = true,
+        canSave = false,
         isRead = false,
     ),
 )
+
+internal fun DripAppState.toDetailScreenState(): DetailScreenState {
+    val detailItem = detailItemOrNull ?: return emptyDetailScreenState()
+
+    return DetailScreenState(
+        item = detailItem,
+        contentType = when (detailItem.kind) {
+            InboxKind.Article, InboxKind.Video -> ContentType.LINK
+            InboxKind.Image -> ContentType.IMAGE
+            InboxKind.Thread -> ContentType.TEXT
+        },
+        noteBody = detailItem.note,
+        rawUrl = null,
+        textContent = null,
+        imageUris = emptyList(),
+        primaryActionEnabled = false,
+        editor = DetailEditorState(
+            visible = false,
+            titleDraft = detailItem.title,
+            noteDraft = detailItem.note,
+            rawUrlDraft = "",
+            textContentDraft = "",
+            imageUris = emptyList(),
+            tags = listOf(detailItem.tag).filter(String::isNotBlank),
+            tagDraft = "",
+            canSave = true,
+            isRead = detailItem.isRead,
+        ),
+    )
+}
 
 internal fun DripAppState.toSettingsScreenState(): SettingsScreenState = SettingsScreenState(
     dailyCount = dailyCount,

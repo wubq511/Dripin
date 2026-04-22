@@ -1,5 +1,7 @@
 package com.example.dripin4.ui.content
 
+import com.dripin.app.core.model.PushFilter
+import com.dripin.app.core.model.ReadFilter
 import com.example.dripin4.ui.app.InboxFilter
 import com.example.dripin4.ui.app.InboxKind
 
@@ -59,16 +61,20 @@ object DripStrings {
     const val UtilityDismissedSubtitle = "让今日保持轻量"
 
     const val InboxFilterAll = "全部"
-    const val InboxFilterArticle = "文章"
-    const val InboxFilterVideo = "视频"
+    const val InboxFilterLink = "链接"
+    const val InboxFilterText = "文字"
     const val InboxFilterImage = "图片"
-    const val InboxFilterThread = "讨论"
-    const val InboxFilterAudio = "音频"
+    const val InboxReadFilterAll = "全部"
+    const val InboxReadFilterRead = "已读"
+    const val InboxReadFilterUnread = "未读"
+    const val InboxPushFilterAll = "全部"
+    const val InboxPushFilterPushed = "已推送"
+    const val InboxPushFilterUnpushed = "未推送"
 
     const val InboxKindArticle = "文章"
     const val InboxKindVideo = "视频"
     const val InboxKindImage = "图片"
-    const val InboxKindThread = "讨论"
+    const val InboxKindThread = "文字"
 
     const val CaptureTagDesign = "设计"
     const val CaptureTagReading = "阅读"
@@ -77,11 +83,21 @@ object DripStrings {
 
     fun inboxFilterLabel(filter: InboxFilter): String = when (filter) {
         InboxFilter.All -> InboxFilterAll
-        InboxFilter.Article -> InboxFilterArticle
-        InboxFilter.Video -> InboxFilterVideo
+        InboxFilter.Link -> InboxFilterLink
+        InboxFilter.Text -> InboxFilterText
         InboxFilter.Image -> InboxFilterImage
-        InboxFilter.Thread -> InboxFilterThread
-        InboxFilter.Audio -> InboxFilterAudio
+    }
+
+    fun inboxReadFilterLabel(filter: ReadFilter): String = when (filter) {
+        ReadFilter.ALL -> InboxReadFilterAll
+        ReadFilter.READ -> InboxReadFilterRead
+        ReadFilter.UNREAD -> InboxReadFilterUnread
+    }
+
+    fun inboxPushFilterLabel(filter: PushFilter): String = when (filter) {
+        PushFilter.ALL -> InboxPushFilterAll
+        PushFilter.PUSHED -> InboxPushFilterPushed
+        PushFilter.UNPUSHED -> InboxPushFilterUnpushed
     }
 
     fun inboxKindLabel(kind: InboxKind): String = when (kind) {

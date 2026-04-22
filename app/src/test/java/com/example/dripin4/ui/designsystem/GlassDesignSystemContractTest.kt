@@ -150,15 +150,23 @@ class GlassDesignSystemContractTest {
     }
 
     @Test
-    fun inboxCardChrome_usesInlineKindLabelAndDarkText() {
+    fun inboxCardChrome_usesContextPillsAndStructuredFootnotes() {
         val source = readSource("app/src/main/java/com/example/dripin4/ui/features/inbox/InboxScreen.kt")
-        assertFalse(
-            "Expected Inbox cards to drop the category pill treatment",
-            source.contains("KindPill("),
+        assertTrue(
+            "Expected Inbox cards to render their top context through GlassInfoPill",
+            source.contains("GlassInfoPill("),
         )
-        assertFalse(
-            "Expected Inbox cards to stop tinting card labels with AccentMint",
-            source.contains("tint = GlassPalette.AccentMint"),
+        assertTrue(
+            "Expected Inbox cards to promote titles to titleLarge for clearer hierarchy",
+            source.contains("MaterialTheme.typography.titleLarge"),
+        )
+        assertTrue(
+            "Expected Inbox cards to expose a structured status group beneath the meta line",
+            source.contains("inbox_status_group_"),
+        )
+        assertTrue(
+            "Expected Inbox cards to collapse the summary panel when there is no text",
+            source.contains("summaryText?.let"),
         )
     }
 

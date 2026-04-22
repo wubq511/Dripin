@@ -44,6 +44,9 @@ internal fun SavedItemEntity.toInboxItemUi(
             ?: sourcePlatform
             ?: contentType.toTagLabel(),
         kind = kind,
+        contentType = contentType,
+        isRead = isRead,
+        pushCount = pushCount,
     )
 }
 

@@ -23,6 +23,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dripin.app.core.model.PushFilter
+import com.dripin.app.core.model.ReadFilter
 import com.example.dripin4.ui.content.DripStrings
 import com.example.dripin4.ui.designsystem.DripTheme
 import com.example.dripin4.ui.designsystem.components.DripBottomNav
@@ -52,7 +54,7 @@ fun DripApp() {
     LaunchedEffect(appState.currentDestination) {
         savedDestinationName = appState.currentDestination.name
     }
-    DripTheme {
+        DripTheme {
         DripAppScaffold(
             appState = appState,
             inboxState = appState.toInboxScreenState(),
@@ -60,7 +62,9 @@ fun DripApp() {
             captureState = appState.toCaptureScreenState(),
             detailState = appState.toDetailScreenState(),
             settingsState = appState.toSettingsScreenState(),
-            onInboxFilterSelected = appState::setInboxFilter,
+            onInboxContentFilterSelected = appState::toggleInboxContentFilter,
+            onInboxReadFilterSelected = appState::setInboxReadFilter,
+            onInboxPushFilterSelected = appState::setInboxPushFilter,
             onOpenDetail = appState::openDetail,
             onCaptureTitleChanged = appState::updateCaptureTitle,
             onCaptureNoteChanged = appState::updateCaptureNote,
@@ -104,7 +108,9 @@ fun DripAppScaffold(
     captureState: CaptureScreenState,
     detailState: DetailScreenState,
     settingsState: SettingsScreenState,
-    onInboxFilterSelected: (InboxFilter) -> Unit,
+    onInboxContentFilterSelected: (InboxFilter) -> Unit,
+    onInboxReadFilterSelected: (ReadFilter) -> Unit,
+    onInboxPushFilterSelected: (PushFilter) -> Unit,
     onOpenDetail: (String) -> Unit,
     onCaptureTitleChanged: (String) -> Unit,
     onCaptureNoteChanged: (String) -> Unit,
@@ -211,7 +217,9 @@ fun DripAppScaffold(
                     captureState = captureState,
                     detailState = detailState,
                     settingsState = settingsState,
-                    onInboxFilterSelected = onInboxFilterSelected,
+                    onInboxContentFilterSelected = onInboxContentFilterSelected,
+                    onInboxReadFilterSelected = onInboxReadFilterSelected,
+                    onInboxPushFilterSelected = onInboxPushFilterSelected,
                     onOpenDetail = onOpenDetail,
                     onCaptureTitleChanged = onCaptureTitleChanged,
                     onCaptureNoteChanged = onCaptureNoteChanged,
@@ -266,7 +274,9 @@ private fun ScreenHost(
     captureState: CaptureScreenState,
     detailState: DetailScreenState,
     settingsState: SettingsScreenState,
-    onInboxFilterSelected: (InboxFilter) -> Unit,
+    onInboxContentFilterSelected: (InboxFilter) -> Unit,
+    onInboxReadFilterSelected: (ReadFilter) -> Unit,
+    onInboxPushFilterSelected: (PushFilter) -> Unit,
     onOpenDetail: (String) -> Unit,
     onCaptureTitleChanged: (String) -> Unit,
     onCaptureNoteChanged: (String) -> Unit,
@@ -310,7 +320,9 @@ private fun ScreenHost(
         when (destination) {
             DripDestination.Inbox -> InboxScreen(
                 state = inboxState,
-                onFilterSelected = onInboxFilterSelected,
+                onContentFilterSelected = onInboxContentFilterSelected,
+                onReadFilterSelected = onInboxReadFilterSelected,
+                onPushFilterSelected = onInboxPushFilterSelected,
                 onOpenDetail = onOpenDetail
             )
 

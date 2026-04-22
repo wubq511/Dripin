@@ -1,5 +1,8 @@
 package com.example.dripin4.ui.app
 
+import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.PushFilter
+import com.dripin.app.core.model.ReadFilter
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -11,7 +14,7 @@ enum class DripDestination {
 }
 
 enum class InboxFilter {
-    All, Article, Video, Image, Thread, Audio
+    All, Link, Text, Image
 }
 
 enum class InboxKind {
@@ -25,7 +28,10 @@ data class InboxItemUi(
     val source: String,
     val time: String,
     val tag: String,
-    val kind: InboxKind
+    val kind: InboxKind,
+    val contentType: ContentType,
+    val isRead: Boolean,
+    val pushCount: Int,
 )
 
 data class TodayItemUi(
@@ -60,7 +66,13 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
     var currentDestination by mutableStateOf(initialDestination)
         private set
 
-    var selectedFilter by mutableStateOf(InboxFilter.All)
+    var selectedContentFilter by mutableStateOf(InboxFilter.All)
+        private set
+
+    var selectedReadFilter by mutableStateOf(ReadFilter.ALL)
+        private set
+
+    var selectedPushFilter by mutableStateOf(PushFilter.ALL)
         private set
 
     var selectedCaptureTags by mutableStateOf(setOf("设计"))
@@ -87,7 +99,9 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
     var suggestCategory by mutableStateOf(false)
         private set
 
-    val inboxFilters = InboxFilter.values().toList()
+    val inboxFilters = InboxFilter.entries.toList()
+    val inboxReadFilters = ReadFilter.entries.toList()
+    val inboxPushFilters = PushFilter.entries.toList()
     val captureTags = listOf("设计", "阅读", "研究", "灵感")
 
     val inboxItems = listOf(
@@ -98,7 +112,10 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
             source = "设计文章",
             time = "8 分钟前",
             tag = "设计",
-            kind = InboxKind.Article
+            kind = InboxKind.Article,
+            contentType = ContentType.LINK,
+            isRead = false,
+            pushCount = 0,
         ),
         InboxItemUi(
             id = "inbox-2",
@@ -107,7 +124,10 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
             source = "讨论串",
             time = "41 分钟前",
             tag = "系统",
-            kind = InboxKind.Thread
+            kind = InboxKind.Thread,
+            contentType = ContentType.TEXT,
+            isRead = true,
+            pushCount = 1,
         ),
         InboxItemUi(
             id = "inbox-3",
@@ -116,7 +136,10 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
             source = "视频内容",
             time = "2 小时前",
             tag = "视觉",
-            kind = InboxKind.Video
+            kind = InboxKind.Video,
+            contentType = ContentType.LINK,
+            isRead = false,
+            pushCount = 2,
         ),
         InboxItemUi(
             id = "inbox-4",
@@ -125,7 +148,10 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
             source = "图片素材",
             time = "5 小时前",
             tag = "素材",
-            kind = InboxKind.Image
+            kind = InboxKind.Image,
+            contentType = ContentType.IMAGE,
+            isRead = true,
+            pushCount = 0,
         )
     )
 
@@ -147,10 +173,12 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
         )
     )
 
-    private var selectedDetailId by mutableStateOf(inboxItems.first().id)
+    private var selectedDetailId by mutableStateOf<String?>(null)
 
-    val detailItem: InboxItemUi
-        get() = inboxItems.firstOrNull { it.id == selectedDetailId } ?: inboxItems.first()
+    val detailItemOrNull: InboxItemUi?
+        get() = selectedDetailId?.let { detailId ->
+            inboxItems.firstOrNull { it.id == detailId }
+        }
 
     val settingsGroups: List<SettingsGroupUi>
         get() = listOf(
@@ -200,19 +228,30 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
         navigateTo(DripDestination.Detail)
     }
 
-    fun setInboxFilter(filter: InboxFilter) {
-        selectedFilter = filter
+    fun toggleInboxContentFilter(filter: InboxFilter) {
+        selectedContentFilter = filter
+    }
+
+    fun setInboxReadFilter(filter: ReadFilter) {
+        selectedReadFilter = filter
+    }
+
+    fun setInboxPushFilter(filter: PushFilter) {
+        selectedPushFilter = filter
+    }
+
+    fun hasActiveInboxFilters(): Boolean {
+        return selectedContentFilter != InboxFilter.All ||
+            selectedReadFilter != ReadFilter.ALL ||
+            selectedPushFilter != PushFilter.ALL
     }
 
     fun filteredInboxItems(): List<InboxItemUi> {
-        return when (selectedFilter) {
-            InboxFilter.All -> inboxItems
-            InboxFilter.Article -> inboxItems.filter { it.kind == InboxKind.Article }
-            InboxFilter.Video -> inboxItems.filter { it.kind == InboxKind.Video }
-            InboxFilter.Image -> inboxItems.filter { it.kind == InboxKind.Image }
-            InboxFilter.Thread -> inboxItems.filter { it.kind == InboxKind.Thread }
-            InboxFilter.Audio -> emptyList()
-        }
+        return inboxItems.filterWith(
+            contentFilter = selectedContentFilter,
+            readFilter = selectedReadFilter,
+            pushFilter = selectedPushFilter,
+        )
     }
 
     fun toggleCaptureTag(tag: String) {
@@ -255,4 +294,35 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
             SettingsToggleKey.SuggestCategory -> suggestCategory = checked
         }
     }
+}
+
+internal fun List<InboxItemUi>.filterWith(
+    contentFilter: InboxFilter,
+    readFilter: ReadFilter,
+    pushFilter: PushFilter,
+): List<InboxItemUi> {
+    return filter { item ->
+        val matchesContentType = when (contentFilter) {
+            InboxFilter.All -> true
+            else -> item.contentType == contentFilter.toContentType()
+        }
+        val matchesReadState = when (readFilter) {
+            ReadFilter.ALL -> true
+            ReadFilter.READ -> item.isRead
+            ReadFilter.UNREAD -> !item.isRead
+        }
+        val matchesPushState = when (pushFilter) {
+            PushFilter.ALL -> true
+            PushFilter.PUSHED -> item.pushCount > 0
+            PushFilter.UNPUSHED -> item.pushCount == 0
+        }
+        matchesContentType && matchesReadState && matchesPushState
+    }
+}
+
+internal fun InboxFilter.toContentType(): ContentType = when (this) {
+    InboxFilter.All -> error("InboxFilter.All does not map to a concrete ContentType")
+    InboxFilter.Link -> ContentType.LINK
+    InboxFilter.Text -> ContentType.TEXT
+    InboxFilter.Image -> ContentType.IMAGE
 }

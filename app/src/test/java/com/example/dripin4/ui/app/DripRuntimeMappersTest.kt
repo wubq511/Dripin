@@ -37,6 +37,9 @@ class DripRuntimeMappersTest {
         assertEquals("8 分钟前", mapped.time)
         assertEquals("设计", mapped.tag)
         assertEquals(InboxKind.Article, mapped.kind)
+        assertEquals(ContentType.LINK, mapped.contentType)
+        assertEquals(false, mapped.isRead)
+        assertEquals(0, mapped.pushCount)
     }
 
     @Test
@@ -62,6 +65,7 @@ class DripRuntimeMappersTest {
         assertEquals("图片", mapped.tag)
         assertEquals("已保存 1 张图片", mapped.note)
         assertEquals("2 小时前", mapped.time)
+        assertEquals(ContentType.IMAGE, mapped.contentType)
     }
 
     @Test
