@@ -7,11 +7,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
@@ -55,13 +58,15 @@ enum class GlassButtonStyle {
 fun Modifier.dockSelectedTint(
     selected: Boolean,
     cornerRadius: Dp = 18.dp,
+    bloomSpread: Dp = 10.dp,
+    bloomAlpha: Float = 0.18f,
 ): Modifier {
     val tintShape = RoundedCornerShape(cornerRadius)
     return this
         .glassBloom(
             color = GlassPalette.HeroBlobMint,
-            spread = 10.dp,
-            alpha = if (selected) 0.18f else 0f,
+            spread = bloomSpread,
+            alpha = if (selected) bloomAlpha else 0f,
             shape = tintShape,
         )
         .clip(tintShape)
@@ -331,6 +336,20 @@ fun GlassSwitch(
 }
 
 @Composable
+fun GlassChipRow(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = DripSpacing.XSmall),
+        horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
+        content = content,
+    )
+}
+
+@Composable
 fun GlassChip(
     text: String,
     selected: Boolean,
@@ -383,7 +402,11 @@ fun GlassChip(
                     )
                 }
             )
-            .dockSelectedTint(selected = selected)
+            .dockSelectedTint(
+                selected = selected,
+                bloomSpread = 0.dp,
+                bloomAlpha = 0f,
+            )
             .border(
                 1.dp,
                 if (selected) Color.Transparent else DripColors.PureWhite.copy(alpha = 0.8f),

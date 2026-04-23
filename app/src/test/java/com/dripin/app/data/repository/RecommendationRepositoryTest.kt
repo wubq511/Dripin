@@ -1,11 +1,13 @@
 package com.dripin.app.data.repository
 
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.core.model.RecommendationSortMode
 import com.dripin.app.data.local.dao.DailyRecommendationDao
 import com.dripin.app.data.local.dao.SavedItemDao
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
+import com.dripin.app.data.local.entity.NotificationDeliveryLogEntity
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.preferences.UserPreferences
 import java.time.Clock
@@ -15,6 +17,7 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -86,6 +89,44 @@ class RecommendationRepositoryTest {
         assertEquals(listOf(9L), batch?.itemIds)
         assertTrue(recommendationDao.insertedBatches.isNotEmpty())
     }
+
+    @Test
+    fun records_notification_delivery_logs_by_latest_attempt_first() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(emptyList())
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao)
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+        )
+
+        repository.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = LocalDate.parse("2026-04-14"),
+                attemptedAt = Instant.parse("2026-04-14T13:00:00Z"),
+                itemCount = 1,
+                status = NotificationDeliveryStatus.POSTED,
+                issue = null,
+                batchId = 10L,
+            ),
+        )
+        repository.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = LocalDate.parse("2026-04-15"),
+                attemptedAt = Instant.parse("2026-04-15T13:00:00Z"),
+                itemCount = 0,
+                status = NotificationDeliveryStatus.BLOCKED,
+                issue = "RuntimePermissionDenied",
+                batchId = null,
+            ),
+        )
+
+        val logs = repository.observeNotificationDeliveryLogs(limit = 10).first()
+
+        assertEquals(
+            listOf(NotificationDeliveryStatus.BLOCKED, NotificationDeliveryStatus.POSTED),
+            logs.map(NotificationDeliveryLog::status),
+        )
+    }
 }
 
 private class FakeSavedItemDao(
@@ -123,6 +164,7 @@ private class FakeDailyRecommendationDao(
 ) : DailyRecommendationDao {
     private val batches = linkedMapOf<Long, DailyRecommendationEntity>()
     private val batchItems = mutableListOf<DailyRecommendationItemEntity>()
+    private val notificationLogs = MutableStateFlow<List<NotificationDeliveryLogEntity>>(emptyList())
     private var nextId = 1L
 
     val insertedBatches: List<DailyRecommendationEntity> get() = batches.values.toList()
@@ -155,6 +197,17 @@ private class FakeDailyRecommendationDao(
 
     override fun observeItemsForDate(date: LocalDate): Flow<List<SavedItemEntity>> {
         return MutableStateFlow(emptyList())
+    }
+
+    override suspend fun insertNotificationDeliveryLog(log: NotificationDeliveryLogEntity): Long {
+        val nextLogId = (notificationLogs.value.maxOfOrNull(NotificationDeliveryLogEntity::id) ?: 0L) + 1L
+        notificationLogs.value = (notificationLogs.value + log.copy(id = nextLogId))
+            .sortedByDescending(NotificationDeliveryLogEntity::attemptedAt)
+        return nextLogId
+    }
+
+    override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>> {
+        return notificationLogs
     }
 }
 

@@ -54,7 +54,7 @@ object DripStrings {
     const val GroupUtility = "工具项"
 
     const val UtilityReminderTitle = "提醒时间"
-    const val UtilityReminderSubtitle = "每晚 20:30"
+    const val UtilityReminderSubtitle = "每天 20:30"
     const val UtilityArchiveTitle = "已保存归档"
     const val UtilityArchiveSubtitle = "回看旧内容，不制造压力"
     const val UtilityDismissedTitle = "清理已略过"

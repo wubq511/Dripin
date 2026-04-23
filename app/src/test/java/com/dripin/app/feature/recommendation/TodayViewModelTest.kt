@@ -2,6 +2,7 @@ package com.dripin.app.feature.recommendation
 
 import com.dripin.app.core.model.ContentType
 import com.dripin.app.data.local.entity.SavedItemEntity
+import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.preferences.UserPreferences
 import com.dripin.app.data.repository.RecommendationStore
 import com.dripin.app.data.repository.TodayBatch
@@ -112,6 +113,10 @@ private class FlowBackedRecommendationStore(
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
 
     override suspend fun markItemRead(itemId: Long) = Unit
+
+    override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) = Unit
+
+    override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> = MutableStateFlow(emptyList())
 }
 
 private class MutableRecommendationStore : RecommendationStore {
@@ -129,6 +134,10 @@ private class MutableRecommendationStore : RecommendationStore {
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
 
     override suspend fun markItemRead(itemId: Long) = Unit
+
+    override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) = Unit
+
+    override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> = MutableStateFlow(emptyList())
 
     fun emit(value: List<SavedItemEntity>) {
         items.value = value

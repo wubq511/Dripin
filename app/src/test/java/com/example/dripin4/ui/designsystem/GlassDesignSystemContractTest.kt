@@ -62,6 +62,77 @@ class GlassDesignSystemContractTest {
     }
 
     @Test
+    fun topBarActions_openSearchAndNotificationHistoryOverlays() {
+        val appScaffoldSource = readSource(appScaffoldPath)
+        val overlaySource = readSource("app/src/main/java/com/example/dripin4/ui/app/TopBarOverlays.kt")
+
+        assertTrue(
+            "Expected top search button to open the search overlay instead of using an empty callback",
+            appScaffoldSource.contains("onSearch = { activeTopBarPanel = TopBarPanel.Search }"),
+        )
+        assertTrue(
+            "Expected top bell button to open the notification history overlay instead of using an empty callback",
+            appScaffoldSource.contains("onBell = { activeTopBarPanel = TopBarPanel.NotificationHistory }"),
+        )
+        assertTrue(
+            "Expected DripAppScaffold to render the search overlay",
+            appScaffoldSource.contains("TopBarSearchOverlay("),
+        )
+        assertTrue(
+            "Expected DripAppScaffold to render the notification history overlay",
+            appScaffoldSource.contains("NotificationHistoryOverlay("),
+        )
+        assertTrue(
+            "Expected search overlay to collapse into a single floating glass search box",
+            overlaySource.contains("GlassPanel(") &&
+                overlaySource.contains(".testTag(\"search_box\")"),
+        )
+        assertTrue(
+            "Expected search overlay to auto focus and request keyboard visibility when opened",
+            overlaySource.contains("FocusRequester()") &&
+                overlaySource.contains("keyboardController?.show()"),
+        )
+        assertTrue(
+            "Expected overlay implementation to keep the existing liquid glass surface language",
+            overlaySource.contains("GlassPanel(") &&
+                overlaySource.contains("AnimatedVisibility(") &&
+                overlaySource.contains("overlaySurfaceMotion("),
+        )
+        assertTrue(
+            "Expected top bar overlays to pull the shared glass backdrop so the overlay background blurs instead of dimming",
+            overlaySource.contains("LocalGlassBackdrop.current") &&
+                overlaySource.contains("drawBackdrop("),
+        )
+        assertTrue(
+            "Expected search query to be wired into actual result derivation instead of staying local to the text field",
+            appScaffoldSource.contains("searchSourceItems.searchInboxItems(searchQuery)") &&
+                appScaffoldSource.contains("results = searchResults"),
+        )
+        assertTrue(
+            "Expected search results to open detail and dismiss the overlay when selected",
+            appScaffoldSource.contains("onOpenResult = { itemId ->") &&
+                appScaffoldSource.contains("onOpenDetail(itemId)"),
+        )
+        assertFalse(
+            "Expected top bar overlays to stop using dark alpha scrims behind search and notification surfaces",
+            overlaySource.contains("Color.Black.copy(alpha = 0.06f)") ||
+                overlaySource.contains("Color.Black.copy(alpha = 0.10f)"),
+        )
+        assertFalse(
+            "Expected notification history overlay to remove the explanatory subtitle under the title",
+            overlaySource.contains("查看每日推荐是否真正发送到系统通知栏"),
+        )
+        assertFalse(
+            "Expected notification history cards to remove the secondary detail text",
+            overlaySource.contains("text = entry.detail"),
+        )
+        assertFalse(
+            "Expected empty notification history state to remove the secondary explanatory copy",
+            overlaySource.contains("下一次生成每日推荐后，这里会显示发送结果。"),
+        )
+    }
+
+    @Test
     fun appScaffold_usesTodayChromeAcrossAllScreens() {
         val appScaffoldSource = readSource(appScaffoldPath)
         assertTrue(
@@ -211,6 +282,32 @@ class GlassDesignSystemContractTest {
     }
 
     @Test
+    fun settingsSortPreference_usesExplicitOptionChips() {
+        val settingsSource = readSource("app/src/main/java/com/example/dripin4/ui/features/settings/SettingsScreen.kt")
+
+        assertTrue(
+            "Expected Settings screen to render the sort preference as a dedicated option group",
+            settingsSource.contains("SortPreferenceRow("),
+        )
+        assertTrue(
+            "Expected Settings sort preference to use chip choices instead of a switch",
+            settingsSource.contains("GlassChipRow"),
+        )
+        assertTrue(
+            "Expected Settings sort preference to expose the newest-first option copy",
+            settingsSource.contains("\"最新优先\""),
+        )
+        assertTrue(
+            "Expected Settings sort preference to expose the oldest-first option copy",
+            settingsSource.contains("\"最早优先\""),
+        )
+        assertFalse(
+            "Expected Settings screen to remove the redundant current-sort summary row",
+            settingsSource.contains("当前排序"),
+        )
+    }
+
+    @Test
     fun glassSwitch_isCompactAndReadableWhenUnchecked() {
         val controlsSource = readSource(controlsComponentsPath)
         assertTrue(
@@ -251,11 +348,53 @@ class GlassDesignSystemContractTest {
         )
         assertTrue(
             "Expected GlassChip to use the dock-selected tint helper",
-            controlsSource.contains(".dockSelectedTint(selected = selected"),
+            controlsSource.contains(".dockSelectedTint(") &&
+                controlsSource.contains("selected = selected"),
         )
         assertTrue(
             "Expected DripBottomNavEntry to use the same dock-selected tint helper",
             barsSource.contains(".dockSelectedTint(selected = selected"),
+        )
+    }
+
+    @Test
+    fun horizontalChipRows_provideEdgeBreathingRoomForGlassBloom() {
+        val controlsSource = readSource(controlsComponentsPath)
+        val inboxSource = readSource("app/src/main/java/com/example/dripin4/ui/features/inbox/InboxScreen.kt")
+        val captureSource = readSource("app/src/main/java/com/example/dripin4/ui/features/capture/CaptureScreen.kt")
+        val detailSource = readSource("app/src/main/java/com/example/dripin4/ui/features/detail/DetailScreen.kt")
+
+        assertTrue(
+            "Expected design system to provide a shared chip row that prevents scroll-edge bloom clipping",
+            controlsSource.contains("fun GlassChipRow("),
+        )
+        assertTrue(
+            "Expected GlassChipRow to keep horizontal scrolling in the shared design-system component",
+            controlsSource.contains(".horizontalScroll(rememberScrollState())"),
+        )
+        assertTrue(
+            "Expected GlassChipRow to give chip bloom room at both scroll edges",
+            controlsSource.contains(".padding(horizontal = DripSpacing.XSmall)"),
+        )
+        assertTrue(
+            "Expected selected chips to suppress external bloom so aligned filter rows do not create vertical shadow seams",
+            controlsSource.contains("bloomSpread = 0.dp"),
+        )
+        assertTrue(
+            "Expected the shared tint helper to keep configurable bloom for dock and primary controls",
+            controlsSource.contains("bloomSpread: Dp = 10.dp"),
+        )
+        assertTrue(
+            "Expected Inbox filters to use the shared chip row instead of a raw horizontally scrolling Row",
+            inboxSource.contains("GlassChipRow"),
+        )
+        assertTrue(
+            "Expected Capture chip groups to use the shared chip row instead of a raw horizontally scrolling Row",
+            captureSource.contains("GlassChipRow"),
+        )
+        assertTrue(
+            "Expected Detail chip groups to use the shared chip row instead of a raw horizontally scrolling Row",
+            detailSource.contains("GlassChipRow"),
         )
     }
 

@@ -72,6 +72,15 @@ data class SettingsScreenState(
     val sortModeLabel: String,
 )
 
+data class NotificationHistoryUi(
+    val id: String,
+    val statusLabel: String,
+    val attemptedAtLabel: String,
+    val countLabel: String,
+    val detail: String,
+    val successful: Boolean,
+)
+
 internal fun DripAppState.toInboxScreenState(): InboxScreenState = InboxScreenState(
     contentFilters = inboxFilters,
     selectedContentFilter = selectedContentFilter,
@@ -175,5 +184,49 @@ internal fun DripAppState.toSettingsScreenState(): SettingsScreenState = Setting
     groups = settingsGroups,
     reminderSubtitle = DripStrings.UtilityReminderSubtitle,
     repeatUnreadEnabled = true,
-    sortModeLabel = "最早保存优先",
+    sortModeLabel = "最早优先",
 )
+
+internal fun DripAppState.toNotificationHistory(): List<NotificationHistoryUi> = listOf(
+    NotificationHistoryUi(
+        id = "sample-history-1",
+        statusLabel = "已发送",
+        attemptedAtLabel = "04-23 21:00",
+        countLabel = "3 条内容",
+        detail = "系统已接受通知",
+        successful = true,
+    ),
+    NotificationHistoryUi(
+        id = "sample-history-2",
+        statusLabel = "未发送",
+        attemptedAtLabel = "04-22 21:00",
+        countLabel = "3 条内容",
+        detail = "应用通知已关闭",
+        successful = false,
+    ),
+)
+
+internal fun List<InboxItemUi>.searchInboxItems(query: String): List<InboxItemUi> {
+    val normalizedTerms = query.trim()
+        .lowercase()
+        .split(Regex("\\s+"))
+        .filter(String::isNotBlank)
+
+    if (normalizedTerms.isEmpty()) return this
+
+    return filter { item ->
+        val haystack = buildString {
+            append(item.title)
+            append(' ')
+            append(item.note)
+            append(' ')
+            append(item.source)
+            append(' ')
+            append(item.tag)
+            append(' ')
+            append(item.time)
+        }.lowercase()
+
+        normalizedTerms.all(haystack::contains)
+    }
+}

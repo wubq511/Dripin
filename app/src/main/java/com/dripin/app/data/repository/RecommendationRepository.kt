@@ -1,16 +1,29 @@
 package com.dripin.app.data.repository
 
 import com.dripin.app.core.model.RecommendationSortMode
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.data.local.dao.DailyRecommendationDao
 import com.dripin.app.data.local.dao.SavedItemDao
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
+import com.dripin.app.data.local.entity.NotificationDeliveryLogEntity
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.preferences.UserPreferences
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+data class NotificationDeliveryLog(
+    val id: Long = 0,
+    val recommendedDate: LocalDate,
+    val attemptedAt: Instant,
+    val itemCount: Int,
+    val status: NotificationDeliveryStatus,
+    val issue: String?,
+    val batchId: Long?,
+)
 
 data class TodayBatch(
     val id: Long,
@@ -30,6 +43,10 @@ interface RecommendationStore {
     fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>>
 
     suspend fun markItemRead(itemId: Long)
+
+    suspend fun recordNotificationDelivery(log: NotificationDeliveryLog)
+
+    fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>>
 }
 
 class RecommendationRepository(
@@ -117,6 +134,15 @@ class RecommendationRepository(
         )
     }
 
+    override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) {
+        recommendationDao.insertNotificationDeliveryLog(log.toEntity())
+    }
+
+    override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> {
+        return recommendationDao.observeNotificationDeliveryLogs(limit)
+            .map { logs -> logs.map(NotificationDeliveryLogEntity::toModel) }
+    }
+
     private suspend fun orderedCandidates(sortMode: RecommendationSortMode): List<SavedItemEntity> {
         return when (sortMode) {
             RecommendationSortMode.OLDEST_SAVED_FIRST -> savedItemDao.getAllByOldestFirst()
@@ -130,3 +156,23 @@ class RecommendationRepository(
             item.imageUris.isNotEmpty()
     }
 }
+
+private fun NotificationDeliveryLog.toEntity(): NotificationDeliveryLogEntity = NotificationDeliveryLogEntity(
+    id = id,
+    recommendedDate = recommendedDate,
+    attemptedAt = attemptedAt,
+    itemCount = itemCount,
+    status = status,
+    issue = issue,
+    batchId = batchId,
+)
+
+private fun NotificationDeliveryLogEntity.toModel(): NotificationDeliveryLog = NotificationDeliveryLog(
+    id = id,
+    recommendedDate = recommendedDate,
+    attemptedAt = attemptedAt,
+    itemCount = itemCount,
+    status = status,
+    issue = issue,
+    batchId = batchId,
+)

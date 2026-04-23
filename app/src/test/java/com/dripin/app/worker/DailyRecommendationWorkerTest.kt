@@ -1,13 +1,18 @@
 package com.dripin.app.worker
 
 import androidx.work.ListenableWorker
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.data.preferences.UserPreferences
+import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.repository.RecommendationStore
 import com.dripin.app.data.repository.TodayBatch
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -100,6 +105,57 @@ class DailyRecommendationWorkerTest {
         assertEquals(2, notifier.lastCount)
         assertTrue(scheduler.scheduled)
     }
+
+    @Test
+    fun worker_records_posted_notification_delivery_result() = runBlocking {
+        val notifier = FakeRecommendationNotifier()
+        val scheduler = RecordingScheduler()
+        val store = FakeRecommendationStore(batch = TodayBatch(id = 7L, itemIds = listOf(2L, 1L)))
+        val today = LocalDate.parse("2026-04-14")
+
+        runDailyRecommendationWork(
+            preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
+            today = today,
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            recommendationStore = store,
+            scheduler = scheduler,
+            notifier = notifier,
+            clock = Clock.fixed(Instant.parse("2026-04-14T13:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val log = store.recordedLogs.single()
+        assertEquals(today, log.recommendedDate)
+        assertEquals(Instant.parse("2026-04-14T13:00:00Z"), log.attemptedAt)
+        assertEquals(2, log.itemCount)
+        assertEquals(NotificationDeliveryStatus.POSTED, log.status)
+        assertEquals(null, log.issue)
+        assertEquals(7L, log.batchId)
+    }
+
+    @Test
+    fun worker_records_blocked_notification_delivery_result() = runBlocking {
+        val notifier = FakeRecommendationNotifier().apply {
+            result = NotificationPostResult.Blocked(NotificationCapabilityIssue.RuntimePermissionDenied)
+        }
+        val scheduler = RecordingScheduler()
+        val store = FakeRecommendationStore(batch = TodayBatch(id = 8L, itemIds = listOf(2L)))
+
+        runDailyRecommendationWork(
+            preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
+            today = LocalDate.parse("2026-04-15"),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            recommendationStore = store,
+            scheduler = scheduler,
+            notifier = notifier,
+            clock = Clock.fixed(Instant.parse("2026-04-15T13:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val log = store.recordedLogs.single()
+        assertEquals(NotificationDeliveryStatus.BLOCKED, log.status)
+        assertEquals(NotificationCapabilityIssue.RuntimePermissionDenied.name, log.issue)
+        assertEquals(1, log.itemCount)
+        assertEquals(8L, log.batchId)
+    }
 }
 
 private class FakeRecommendationNotifier : RecommendationNotifier {
@@ -130,6 +186,8 @@ private class RecordingScheduler : SchedulerController {
 private class FakeRecommendationStore(
     private val batch: TodayBatch?,
 ) : RecommendationStore {
+    val recordedLogs = mutableListOf<NotificationDeliveryLog>()
+
     override suspend fun generateTodayBatch(
         preferences: UserPreferences,
         today: LocalDate,
@@ -142,4 +200,10 @@ private class FakeRecommendationStore(
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = emptyFlow()
 
     override suspend fun markItemRead(itemId: Long) = Unit
+
+    override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) {
+        recordedLogs += log
+    }
+
+    override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> = emptyFlow()
 }

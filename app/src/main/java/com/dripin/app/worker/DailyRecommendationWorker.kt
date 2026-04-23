@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.data.local.AppDatabase
 import com.dripin.app.data.preferences.UserPreferences
 import com.dripin.app.data.preferences.UserPreferencesRepository
+import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.preferences.userPreferencesDataStore
 import com.dripin.app.data.repository.RecommendationRepository
 import com.dripin.app.data.repository.RecommendationStore
+import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
@@ -35,6 +38,7 @@ class DailyRecommendationWorker(
             recommendationStore = recommendationStore,
             scheduler = DailyRecommendationScheduler.create(applicationContext),
             notifier = AndroidRecommendationNotifier(applicationContext),
+            clock = Clock.systemUTC(),
         )
     }
 }
@@ -46,8 +50,19 @@ suspend fun runDailyRecommendationWork(
     recommendationStore: RecommendationStore,
     scheduler: SchedulerController,
     notifier: RecommendationNotifier,
+    clock: Clock = Clock.systemUTC(),
 ): ListenableWorker.Result {
     if (!preferences.notificationsEnabled) {
+        recommendationStore.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = today,
+                attemptedAt = clock.instant(),
+                itemCount = 0,
+                status = NotificationDeliveryStatus.SKIPPED,
+                issue = "NOTIFICATIONS_DISABLED",
+                batchId = null,
+            ),
+        )
         scheduler.cancel()
         return ListenableWorker.Result.success()
     }
@@ -59,7 +74,28 @@ suspend fun runDailyRecommendationWork(
     )
 
     if (existingBatch == null && batch != null && batch.itemIds.isNotEmpty()) {
-        notifier.showDailyRecommendation(batch.itemIds.size)
+        val notificationResult = notifier.showDailyRecommendation(batch.itemIds.size)
+        recommendationStore.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = today,
+                attemptedAt = clock.instant(),
+                itemCount = batch.itemIds.size,
+                status = notificationResult.toDeliveryStatus(),
+                issue = notificationResult.toDeliveryIssue(),
+                batchId = batch.id,
+            ),
+        )
+    } else if (existingBatch == null && batch == null) {
+        recommendationStore.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = today,
+                attemptedAt = clock.instant(),
+                itemCount = 0,
+                status = NotificationDeliveryStatus.SKIPPED,
+                issue = "NO_RECOMMENDATIONS",
+                batchId = null,
+            ),
+        )
     }
 
     scheduler.scheduleNextRun(
@@ -67,4 +103,16 @@ suspend fun runDailyRecommendationWork(
         zoneId = zoneId,
     )
     return ListenableWorker.Result.success()
+}
+
+private fun NotificationPostResult.toDeliveryStatus(): NotificationDeliveryStatus = when (this) {
+    NotificationPostResult.Posted -> NotificationDeliveryStatus.POSTED
+    is NotificationPostResult.Blocked -> NotificationDeliveryStatus.BLOCKED
+    is NotificationPostResult.Failed -> NotificationDeliveryStatus.FAILED
+}
+
+private fun NotificationPostResult.toDeliveryIssue(): String? = when (this) {
+    NotificationPostResult.Posted -> null
+    is NotificationPostResult.Blocked -> issue.name
+    is NotificationPostResult.Failed -> reason
 }

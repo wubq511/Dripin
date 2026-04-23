@@ -2,6 +2,7 @@ package com.dripin.app.data.local
 
 import androidx.room.TypeConverter
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.core.model.TagType
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -25,6 +26,13 @@ class Converters {
 
     @TypeConverter
     fun toTagType(value: String?): TagType? = value?.let(TagType::valueOf)
+
+    @TypeConverter
+    fun fromNotificationDeliveryStatus(value: NotificationDeliveryStatus?): String? = value?.name
+
+    @TypeConverter
+    fun toNotificationDeliveryStatus(value: String?): NotificationDeliveryStatus? =
+        value?.let(NotificationDeliveryStatus::valueOf)
 
     @TypeConverter
     fun fromInstant(value: Instant?): String? = value?.toString()

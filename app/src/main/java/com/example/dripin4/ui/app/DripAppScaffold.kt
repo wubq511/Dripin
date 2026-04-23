@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,10 +59,12 @@ fun DripApp() {
         DripAppScaffold(
             appState = appState,
             inboxState = appState.toInboxScreenState(),
+            searchSourceItems = appState.inboxItems,
             todayState = appState.toTodayScreenState(),
             captureState = appState.toCaptureScreenState(),
             detailState = appState.toDetailScreenState(),
             settingsState = appState.toSettingsScreenState(),
+            notificationHistory = appState.toNotificationHistory(),
             onInboxContentFilterSelected = appState::toggleInboxContentFilter,
             onInboxReadFilterSelected = appState::setInboxReadFilter,
             onInboxPushFilterSelected = appState::setInboxPushFilter,
@@ -104,10 +107,12 @@ fun DripApp() {
 fun DripAppScaffold(
     appState: DripAppState,
     inboxState: InboxScreenState,
+    searchSourceItems: List<InboxItemUi>,
     todayState: TodayScreenState,
     captureState: CaptureScreenState,
     detailState: DetailScreenState,
     settingsState: SettingsScreenState,
+    notificationHistory: List<NotificationHistoryUi>,
     onInboxContentFilterSelected: (InboxFilter) -> Unit,
     onInboxReadFilterSelected: (ReadFilter) -> Unit,
     onInboxPushFilterSelected: (PushFilter) -> Unit,
@@ -145,6 +150,15 @@ fun DripAppScaffold(
     modifier: Modifier = Modifier
 ) {
     val todayBackdrop = rememberLayerBackdrop()
+    var activeTopBarPanel by rememberSaveable { mutableStateOf<TopBarPanel?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val searchResults = remember(searchSourceItems, searchQuery) {
+        if (searchQuery.isBlank()) {
+            emptyList()
+        } else {
+            searchSourceItems.searchInboxItems(searchQuery).take(6)
+        }
+    }
     val navItems = remember {
         listOf(
             DripBottomNavItem(
@@ -194,8 +208,8 @@ fun DripAppScaffold(
                     DripTopBar(
                         brand = DripStrings.Brand,
                         subtitle = DripStrings.TopSubtitle,
-                        onSearch = {},
-                        onBell = {},
+                        onSearch = { activeTopBarPanel = TopBarPanel.Search },
+                        onBell = { activeTopBarPanel = TopBarPanel.NotificationHistory },
                         todayGlassMode = true,
                         todayBackdrop = todayBackdrop
                     )
@@ -262,6 +276,28 @@ fun DripAppScaffold(
                     )
                 )
             }
+
+            TopBarSearchOverlay(
+                visible = activeTopBarPanel == TopBarPanel.Search,
+                query = searchQuery,
+                results = searchResults,
+                onQueryChange = { searchQuery = it },
+                onOpenResult = { itemId ->
+                    activeTopBarPanel = null
+                    searchQuery = ""
+                    onOpenDetail(itemId)
+                },
+                onDismiss = {
+                    activeTopBarPanel = null
+                    searchQuery = ""
+                },
+            )
+
+            NotificationHistoryOverlay(
+                visible = activeTopBarPanel == TopBarPanel.NotificationHistory,
+                history = notificationHistory,
+                onDismiss = { activeTopBarPanel = null },
+            )
         }
     }
 }

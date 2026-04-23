@@ -124,6 +124,8 @@ fun DripRuntimeApp(
     val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
     val settingsUiState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = remember(settingsUiState) { settingsUiState.toSettingsScreenState() }
+    val notificationHistory by recommendationRepository.observeNotificationDeliveryLogs(limit = 20)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val detailViewModelOrNull: DetailViewModel? = activeDetailId?.toLongOrNull()?.let { itemId ->
         viewModel(
@@ -275,10 +277,12 @@ fun DripRuntimeApp(
         DripAppScaffold(
             appState = appState,
             inboxState = inboxState,
+            searchSourceItems = inboxItems,
             todayState = todayState,
             captureState = captureState,
             detailState = detailState,
             settingsState = settingsState,
+            notificationHistory = notificationHistory.map { it.toNotificationHistoryUi(zoneId) },
             onInboxContentFilterSelected = appState::toggleInboxContentFilter,
             onInboxReadFilterSelected = appState::setInboxReadFilter,
             onInboxPushFilterSelected = appState::setInboxPushFilter,

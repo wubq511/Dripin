@@ -23,6 +23,10 @@ sealed interface NotificationPostResult {
     data class Blocked(
         val issue: NotificationCapabilityIssue,
     ) : NotificationPostResult
+
+    data class Failed(
+        val reason: String?,
+    ) : NotificationPostResult
 }
 
 class AndroidRecommendationNotifier(
@@ -59,8 +63,8 @@ class AndroidRecommendationNotifier(
             NotificationPostResult.Posted
         }.getOrElse { throwable ->
             Log.w(Tag, "Failed to post daily recommendation notification", throwable)
-            NotificationPostResult.Blocked(
-                capability.primaryIssue() ?: NotificationCapabilityIssue.ChannelBlocked,
+            NotificationPostResult.Failed(
+                reason = throwable.message,
             )
         }
     }

@@ -195,6 +195,7 @@ fun DripTopBar(
                     icon = Icons.Outlined.Search,
                     contentDescription = "搜索",
                     onClick = onSearch,
+                    testTag = "top_bar_search",
                     todayGlassMode = todayGlassMode,
                     todayBackdrop = todayBackdrop
                 )
@@ -202,6 +203,7 @@ fun DripTopBar(
                     icon = Icons.Outlined.NotificationsNone,
                     contentDescription = "通知",
                     onClick = onBell,
+                    testTag = "top_bar_notifications",
                     todayGlassMode = todayGlassMode,
                     todayBackdrop = todayBackdrop
                 )
@@ -215,6 +217,7 @@ private fun DripTopBarIconButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
+    testTag: String,
     todayGlassMode: Boolean,
     todayBackdrop: Backdrop?,
     modifier: Modifier = Modifier
@@ -249,6 +252,7 @@ private fun DripTopBarIconButton(
                 scaleX = pressScale
                 scaleY = pressScale
             }
+            .testTag(testTag)
             .shadow(
                 elevation = 4.dp,
                 shape = CircleShape,

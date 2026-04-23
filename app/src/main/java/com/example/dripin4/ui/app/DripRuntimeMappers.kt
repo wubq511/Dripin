@@ -1,6 +1,8 @@
 package com.example.dripin4.ui.app
 
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.NotificationDeliveryStatus
+import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.feature.capture.SaveItemUiState
 import com.dripin.app.feature.detail.DetailUiState
@@ -101,10 +103,31 @@ internal fun SettingsUiState.toPrototypeSettingsUi(): PrototypeSettingsUi {
 
     return PrototypeSettingsUi(
         dailyCount = dailyPushCount,
-        reminderSubtitle = "每晚 $timeLabel",
+        reminderSubtitle = "每天 $timeLabel",
         groups = groups,
         repeatUnreadEnabled = repeatPushedUnreadItems,
         sortModeLabel = recommendationSortMode.label,
+    )
+}
+
+internal fun NotificationDeliveryLog.toNotificationHistoryUi(
+    zoneId: ZoneId,
+): NotificationHistoryUi {
+    val attemptedAtLabel = attemptedAt.atZone(zoneId)
+        .format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+
+    return NotificationHistoryUi(
+        id = id.toString(),
+        statusLabel = when (status) {
+            NotificationDeliveryStatus.POSTED -> "已发送"
+            NotificationDeliveryStatus.BLOCKED -> "未发送"
+            NotificationDeliveryStatus.FAILED -> "发送失败"
+            NotificationDeliveryStatus.SKIPPED -> "已跳过"
+        },
+        attemptedAtLabel = attemptedAtLabel,
+        countLabel = "${itemCount} 条内容",
+        detail = issue.toNotificationHistoryDetail(),
+        successful = status == NotificationDeliveryStatus.POSTED,
     )
 }
 
@@ -222,4 +245,14 @@ private fun ContentType.toTagLabel(): String = when (this) {
     ContentType.LINK -> "链接"
     ContentType.TEXT -> "文字"
     ContentType.IMAGE -> "图片"
+}
+
+private fun String?.toNotificationHistoryDetail(): String = when (this) {
+    null -> "系统已接受通知"
+    "RuntimePermissionDenied" -> "权限未授权"
+    "AppNotificationsDisabled" -> "应用通知已关闭"
+    "ChannelBlocked" -> "通知频道被关闭"
+    "NOTIFICATIONS_DISABLED" -> "提醒功能已关闭"
+    "NO_RECOMMENDATIONS" -> "本次没有可推送内容"
+    else -> this
 }

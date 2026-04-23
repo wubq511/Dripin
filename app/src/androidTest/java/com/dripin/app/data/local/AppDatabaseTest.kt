@@ -6,8 +6,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
+import com.dripin.app.data.local.entity.NotificationDeliveryLogEntity
 import com.dripin.app.data.local.entity.SavedItemEntity
 import java.time.Instant
 import java.time.LocalDate
@@ -171,5 +173,29 @@ class AppDatabaseTest {
 
         val emission = observed.await()
         assertEquals(listOf(itemId), emission.map(SavedItemEntity::id))
+    }
+
+    @Test
+    fun notification_delivery_log_roundTrips_with_status_and_issue() = runBlocking {
+        val recommendationDao = database.dailyRecommendationDao()
+
+        recommendationDao.insertNotificationDeliveryLog(
+            NotificationDeliveryLogEntity(
+                recommendedDate = LocalDate.parse("2026-04-15"),
+                attemptedAt = Instant.parse("2026-04-15T13:00:00Z"),
+                itemCount = 3,
+                status = NotificationDeliveryStatus.BLOCKED,
+                issue = "RuntimePermissionDenied",
+                batchId = null,
+            ),
+        )
+
+        val logs = withTimeout(2_000) {
+            recommendationDao.observeNotificationDeliveryLogs(limit = 10).first { it.isNotEmpty() }
+        }
+
+        assertEquals(NotificationDeliveryStatus.BLOCKED, logs.single().status)
+        assertEquals("RuntimePermissionDenied", logs.single().issue)
+        assertEquals(3, logs.single().itemCount)
     }
 }

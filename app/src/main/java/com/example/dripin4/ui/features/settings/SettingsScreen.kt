@@ -27,6 +27,8 @@ import com.example.dripin4.ui.designsystem.DripSpacing
 import com.example.dripin4.ui.designsystem.GlassPalette
 import com.example.dripin4.ui.designsystem.components.GlassCard
 import com.example.dripin4.ui.designsystem.components.GlassCardTone
+import com.example.dripin4.ui.designsystem.components.GlassChip
+import com.example.dripin4.ui.designsystem.components.GlassChipRow
 import com.example.dripin4.ui.designsystem.components.GlassIconButton
 import com.example.dripin4.ui.designsystem.components.GlassPageHeader
 import com.example.dripin4.ui.designsystem.components.GlassPanel
@@ -127,19 +129,22 @@ fun SettingsScreen(
                     GlassSectionHeading(title = group.title)
                     group.rows.forEach { row ->
                         Spacer(modifier = Modifier.height(DripSpacing.XSmall))
-                        DeliveryToggleRow(
-                            label = row.label,
-                            hint = row.hint,
-                            checked = row.checked,
-                            onCheckedChange = { onToggleSetting(row.key, it) },
-                        )
+                        if (row.key == SettingsToggleKey.SuggestCategory) {
+                            SortPreferenceRow(
+                                label = row.label,
+                                selectedNewestFirst = row.checked,
+                                onSelectNewestFirst = { onToggleSetting(row.key, true) },
+                                onSelectOldestFirst = { onToggleSetting(row.key, false) },
+                            )
+                        } else {
+                            DeliveryToggleRow(
+                                label = row.label,
+                                hint = row.hint,
+                                checked = row.checked,
+                                onCheckedChange = { onToggleSetting(row.key, it) },
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(DripSpacing.XSmall))
-                    UtilityRow(
-                        title = "当前排序",
-                        subtitle = state.sortModeLabel,
-                        onClick = {},
-                    )
                 }
             }
         }
@@ -181,6 +186,43 @@ private fun DeliveryToggleRow(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
             )
+        }
+    }
+}
+
+@Composable
+private fun SortPreferenceRow(
+    label: String,
+    selectedNewestFirst: Boolean,
+    onSelectNewestFirst: () -> Unit,
+    onSelectOldestFirst: () -> Unit,
+) {
+    GlassPanel {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = DripColors.Ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            GlassChipRow {
+                GlassChip(
+                    text = "最新优先",
+                    selected = selectedNewestFirst,
+                    onClick = onSelectNewestFirst,
+                    testTag = "settings_sort_newest",
+                )
+                GlassChip(
+                    text = "最早优先",
+                    selected = !selectedNewestFirst,
+                    onClick = onSelectOldestFirst,
+                    testTag = "settings_sort_oldest",
+                )
+            }
         }
     }
 }

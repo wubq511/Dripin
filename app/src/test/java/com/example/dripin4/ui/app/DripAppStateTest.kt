@@ -16,4 +16,22 @@ class DripAppStateTest {
 
         assertEquals("每日推送", deliveryLabel)
     }
+
+    @Test
+    fun searchInboxItems_matchesTitleNoteSourceAndTag() {
+        val appState = DripAppState()
+
+        assertEquals(
+            listOf("inbox-3"),
+            appState.inboxItems.searchInboxItems("视觉").map(InboxItemUi::id),
+        )
+        assertEquals(
+            listOf("inbox-2"),
+            appState.inboxItems.searchInboxItems("讨论串").map(InboxItemUi::id),
+        )
+        assertEquals(
+            appState.inboxItems.map(InboxItemUi::id),
+            appState.inboxItems.searchInboxItems("   ").map(InboxItemUi::id),
+        )
+    }
 }

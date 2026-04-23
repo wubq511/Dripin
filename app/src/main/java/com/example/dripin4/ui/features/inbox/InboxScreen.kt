@@ -1,7 +1,6 @@
 package com.example.dripin4.ui.features.inbox
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +32,7 @@ import com.example.dripin4.ui.designsystem.GlassPalette
 import com.example.dripin4.ui.designsystem.components.GlassCard
 import com.example.dripin4.ui.designsystem.components.GlassCardTone
 import com.example.dripin4.ui.designsystem.components.GlassChip
+import com.example.dripin4.ui.designsystem.components.GlassChipRow
 import com.example.dripin4.ui.designsystem.components.GlassInfoPill
 import com.example.dripin4.ui.designsystem.components.GlassPageHeader
 import com.example.dripin4.ui.designsystem.components.GlassPanel
@@ -150,11 +149,7 @@ private fun FilterGroup(
             style = MaterialTheme.typography.labelMedium,
             color = GlassPalette.TextTodaySubtitle,
         )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
-            content = content,
-        )
+        GlassChipRow(content = content)
     }
 }
 

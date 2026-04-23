@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
+import com.dripin.app.data.local.entity.NotificationDeliveryLogEntity
 import com.dripin.app.data.local.entity.SavedItemEntity
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,9 @@ interface DailyRecommendationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBatchItems(items: List<DailyRecommendationItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotificationDeliveryLog(log: NotificationDeliveryLogEntity): Long
 
     @Query(
         """
@@ -61,4 +65,13 @@ interface DailyRecommendationDao {
         """,
     )
     fun observeItemsForDate(date: LocalDate): Flow<List<SavedItemEntity>>
+
+    @Query(
+        """
+        SELECT * FROM notification_delivery_logs
+        ORDER BY attemptedAt DESC
+        LIMIT :limit
+        """,
+    )
+    fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>>
 }

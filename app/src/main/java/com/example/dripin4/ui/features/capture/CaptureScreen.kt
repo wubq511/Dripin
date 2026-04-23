@@ -34,6 +34,7 @@ import com.example.dripin4.ui.designsystem.components.GlassButtonStyle
 import com.example.dripin4.ui.designsystem.components.GlassCard
 import com.example.dripin4.ui.designsystem.components.GlassCardTone
 import com.example.dripin4.ui.designsystem.components.GlassChip
+import com.example.dripin4.ui.designsystem.components.GlassChipRow
 import com.example.dripin4.ui.designsystem.components.GlassField
 import com.example.dripin4.ui.designsystem.components.GlassInfoPill
 import com.example.dripin4.ui.designsystem.components.GlassPageHeader
@@ -78,10 +79,7 @@ fun CaptureScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.Large)) {
                     Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.Small)) {
                         if (state.isManualEntry) {
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
-                            ) {
+                            GlassChipRow {
                                 ContentType.entries.forEach { contentType ->
                                     GlassChip(
                                         text = contentType.captureLabel(),
@@ -218,10 +216,7 @@ fun CaptureScreen(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.Small)) {
                         GlassSectionHeading(title = "标签")
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
-                        ) {
+                        GlassChipRow {
                             state.availableTags.forEach { tag ->
                                 val selected = state.selectedTags.contains(tag)
                                 val baseTag = "tag_${tag.lowercase()}"
@@ -234,10 +229,7 @@ fun CaptureScreen(
                             }
                         }
                         if (state.autoTags.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
-                            ) {
+                            GlassChipRow {
                                 state.autoTags.forEachIndexed { index, tag ->
                                     GlassChip(
                                         text = tag,

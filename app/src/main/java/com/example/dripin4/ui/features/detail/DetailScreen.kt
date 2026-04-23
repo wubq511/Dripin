@@ -33,6 +33,7 @@ import com.example.dripin4.ui.designsystem.components.GlassButtonStyle
 import com.example.dripin4.ui.designsystem.components.GlassCard
 import com.example.dripin4.ui.designsystem.components.GlassCardTone
 import com.example.dripin4.ui.designsystem.components.GlassChip
+import com.example.dripin4.ui.designsystem.components.GlassChipRow
 import com.example.dripin4.ui.designsystem.components.GlassField
 import com.example.dripin4.ui.designsystem.components.GlassHeroAccent
 import com.example.dripin4.ui.designsystem.components.GlassHeroHeader
@@ -307,10 +308,7 @@ private fun DetailEditorDialog(
             GlassSectionHeading(title = "标签")
             Spacer(modifier = Modifier.height(DripSpacing.Small))
             if (state.editor.tags.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(DripSpacing.XSmall),
-                ) {
+                GlassChipRow {
                     state.editor.tags.forEach { tag ->
                         GlassChip(
                             text = tag,

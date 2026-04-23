@@ -204,14 +204,14 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
                 rows = listOf(
                     SettingsToggleUi(
                         key = SettingsToggleKey.AutoTitle,
-                        label = "自动识别标题",
-                        hint = "保持收集页轻量",
+                        label = "重复推荐未读内容",
+                        hint = "已允许重复推送未读内容",
                         checked = autoTitle
                     ),
                     SettingsToggleUi(
                         key = SettingsToggleKey.SuggestCategory,
-                        label = "智能建议分类",
-                        hint = "仅在高置信度时触发",
+                        label = "推荐排序偏好",
+                        hint = if (suggestCategory) "最新优先" else "最早优先",
                         checked = suggestCategory
                     )
                 )

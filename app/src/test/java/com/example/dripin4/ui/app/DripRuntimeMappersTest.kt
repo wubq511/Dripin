@@ -1,13 +1,16 @@
 package com.example.dripin4.ui.app
 
 import com.dripin.app.core.model.ContentType
+import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.core.model.RecommendationSortMode
+import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.feature.recommendation.TodayCardModel
 import com.dripin.app.feature.settings.SettingsUiState
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -106,10 +109,30 @@ class DripRuntimeMappersTest {
         val mapped = uiState.toPrototypeSettingsUi()
 
         assertEquals(5, mapped.dailyCount)
-        assertEquals("每晚 20:45", mapped.reminderSubtitle)
+        assertEquals("每天 20:45", mapped.reminderSubtitle)
         assertEquals(false, mapped.groups.first().rows.first().checked)
         assertEquals(false, mapped.repeatUnreadEnabled)
-        assertEquals("最新保存优先", mapped.sortModeLabel)
+        assertEquals("最新优先", mapped.sortModeLabel)
+    }
+
+    @Test
+    fun notificationDeliveryLog_mapsIntoReadableHistoryRow() {
+        val mapped = NotificationDeliveryLog(
+            id = 12L,
+            recommendedDate = LocalDate.parse("2026-04-15"),
+            attemptedAt = Instant.parse("2026-04-15T13:00:00Z"),
+            itemCount = 3,
+            status = NotificationDeliveryStatus.BLOCKED,
+            issue = "RuntimePermissionDenied",
+            batchId = 7L,
+        ).toNotificationHistoryUi(ZoneId.of("Asia/Shanghai"))
+
+        assertEquals("12", mapped.id)
+        assertEquals("未发送", mapped.statusLabel)
+        assertEquals("04-15 21:00", mapped.attemptedAtLabel)
+        assertEquals("3 条内容", mapped.countLabel)
+        assertEquals("权限未授权", mapped.detail)
+        assertEquals(false, mapped.successful)
     }
 
     @Test
