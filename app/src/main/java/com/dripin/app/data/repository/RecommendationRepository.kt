@@ -42,6 +42,12 @@ interface RecommendationStore {
 
     fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>>
 
+    suspend fun reconcileTodayBatchPushState(today: LocalDate)
+
+    suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean
+
+    suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant)
+
     suspend fun markItemRead(itemId: Long)
 
     suspend fun recordNotificationDelivery(log: NotificationDeliveryLog)
@@ -92,8 +98,6 @@ class RecommendationRepository(
         candidates.forEach { item ->
             savedItemDao.update(
                 item.copy(
-                    pushCount = item.pushCount + 1,
-                    lastPushedAt = now,
                     lastRecommendedDate = today,
                     updatedAt = now,
                 ),
@@ -120,6 +124,43 @@ class RecommendationRepository(
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> {
         return recommendationDao.observeItemsForDate(today)
+    }
+
+    override suspend fun reconcileTodayBatchPushState(today: LocalDate) {
+        val batch = recommendationDao.getBatchForDate(today) ?: return
+        if (recommendationDao.hasPostedNotificationForBatch(batch.id)) return
+
+        val now = Instant.now(clock)
+        recommendationDao.getItemIdsForBatch(batch.id).forEach { itemId ->
+            val item = savedItemDao.getById(itemId) ?: return@forEach
+            if (item.lastRecommendedDate != today || item.pushCount == 0) return@forEach
+
+            val repairedPushCount = (item.pushCount - 1).coerceAtLeast(0)
+            savedItemDao.update(
+                item.copy(
+                    pushCount = repairedPushCount,
+                    lastPushedAt = item.lastPushedAt.takeUnless { repairedPushCount == 0 },
+                    updatedAt = now,
+                ),
+            )
+        }
+    }
+
+    override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean {
+        return recommendationDao.hasPostedNotificationForBatch(batchId)
+    }
+
+    override suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant) {
+        recommendationDao.getItemIdsForBatch(batchId).forEach { itemId ->
+            val item = savedItemDao.getById(itemId) ?: return@forEach
+            savedItemDao.update(
+                item.copy(
+                    pushCount = item.pushCount + 1,
+                    lastPushedAt = deliveredAt,
+                    updatedAt = deliveredAt,
+                ),
+            )
+        }
     }
 
     override suspend fun markItemRead(itemId: Long) {

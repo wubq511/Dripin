@@ -21,10 +21,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.dripin4.ui.app.SettingsScreenState
 import com.example.dripin4.ui.app.SettingsToggleKey
+import com.example.dripin4.ui.app.SystemNotificationUi
 import com.example.dripin4.ui.content.DripStrings
 import com.example.dripin4.ui.designsystem.DripColors
 import com.example.dripin4.ui.designsystem.DripSpacing
+import com.example.dripin4.ui.designsystem.DripTypography
 import com.example.dripin4.ui.designsystem.GlassPalette
+import com.example.dripin4.ui.designsystem.components.GlassButton
+import com.example.dripin4.ui.designsystem.components.GlassButtonStyle
 import com.example.dripin4.ui.designsystem.components.GlassCard
 import com.example.dripin4.ui.designsystem.components.GlassCardTone
 import com.example.dripin4.ui.designsystem.components.GlassChip
@@ -43,6 +47,7 @@ fun SettingsScreen(
     onIncreaseDailyCount: () -> Unit,
     onToggleSetting: (SettingsToggleKey, Boolean) -> Unit,
     onOpenReminderTime: () -> Unit,
+    onSystemNotificationAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val deliveryGroup = state.groups.firstOrNull()
@@ -109,6 +114,12 @@ fun SettingsScreen(
                         onCheckedChange = { onToggleSetting(row.key, it) },
                     )
                 }
+
+                Spacer(modifier = Modifier.height(DripSpacing.XSmall))
+                SystemNotificationPanel(
+                    state = state.systemNotification,
+                    onActionClick = onSystemNotificationAction,
+                )
 
                 Spacer(modifier = Modifier.height(DripSpacing.XSmall))
                 UtilityRow(
@@ -226,6 +237,45 @@ private fun SortPreferenceRow(
         }
     }
 }
+
+@Composable
+private fun SystemNotificationPanel(
+    state: SystemNotificationUi,
+    onActionClick: () -> Unit,
+) {
+    GlassPanel(modifier = Modifier.testTag("settings_notification_panel")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.XSmall)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "系统通知",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = DripColors.Ink,
+                )
+                Spacer(modifier = Modifier.width(DripSpacing.Small))
+                Text(
+                    text = state.statusLabel,
+                    modifier = Modifier.testTag("settings_notification_status"),
+                    style = systemNotificationStatusTextStyle(),
+                    color = if (state.enabled) GlassPalette.AccentMint else DripColors.Graphite,
+                )
+            }
+            GlassButton(
+                text = state.actionLabel,
+                onClick = onActionClick,
+                modifier = Modifier.fillMaxWidth(),
+                style = if (state.enabled) GlassButtonStyle.Secondary else GlassButtonStyle.Primary,
+                testTag = "settings_notification_action",
+            )
+        }
+    }
+}
+
+internal fun systemNotificationStatusTextStyle() = DripTypography.labelLarge
 
 @Composable
 private fun UtilityRow(

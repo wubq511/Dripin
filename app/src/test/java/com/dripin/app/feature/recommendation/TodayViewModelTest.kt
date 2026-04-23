@@ -112,6 +112,12 @@ private class FlowBackedRecommendationStore(
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
 
+    override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
+
+    override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean = false
+
+    override suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant) = Unit
+
     override suspend fun markItemRead(itemId: Long) = Unit
 
     override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) = Unit
@@ -132,6 +138,12 @@ private class MutableRecommendationStore : RecommendationStore {
     override suspend fun getTodayItems(today: LocalDate): List<SavedItemEntity> = items.value
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
+
+    override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
+
+    override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean = false
+
+    override suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant) = Unit
 
     override suspend fun markItemRead(itemId: Long) = Unit
 

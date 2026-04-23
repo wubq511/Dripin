@@ -7,6 +7,7 @@ import com.dripin.app.data.repository.NotificationDeliveryLog
 import com.dripin.app.data.local.entity.SavedItemEntity
 import com.dripin.app.feature.recommendation.TodayCardModel
 import com.dripin.app.feature.settings.SettingsUiState
+import com.dripin.app.worker.NotificationCapabilitySnapshot
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -97,22 +98,61 @@ class DripRuntimeMappersTest {
     }
 
     @Test
-    fun settingsUiState_mapsIntoPrototypeSettingsState() {
+    fun settingsUiState_mapsIntoSettingsScreenState() {
         val uiState = SettingsUiState(
             notificationsEnabled = false,
             dailyPushTime = LocalTime.of(20, 45),
             dailyPushCount = 5,
             repeatPushedUnreadItems = false,
             recommendationSortMode = RecommendationSortMode.NEWEST_SAVED_FIRST,
+            notificationCapability = NotificationCapabilitySnapshot(
+                runtimePermissionGranted = false,
+                appNotificationsEnabled = true,
+                channelExists = false,
+                channelBlocked = false,
+            ),
         )
 
-        val mapped = uiState.toPrototypeSettingsUi()
+        val mapped = uiState.toSettingsScreenState()
 
         assertEquals(5, mapped.dailyCount)
         assertEquals("每天 20:45", mapped.reminderSubtitle)
         assertEquals(false, mapped.groups.first().rows.first().checked)
         assertEquals(false, mapped.repeatUnreadEnabled)
         assertEquals("最新优先", mapped.sortModeLabel)
+        assertEquals(false, mapped.systemNotification.enabled)
+        assertEquals("未开启", mapped.systemNotification.statusLabel)
+        assertEquals("系统还没授予通知权限，Dripin 现在发不出提醒。", mapped.systemNotification.detail)
+        assertEquals("开启系统通知", mapped.systemNotification.actionLabel)
+    }
+
+    @Test
+    fun notificationCapability_resolvesSystemNotificationActionByPlatform() {
+        val runtimePermissionDenied = NotificationCapabilitySnapshot(
+            runtimePermissionGranted = false,
+            appNotificationsEnabled = true,
+            channelExists = false,
+            channelBlocked = false,
+        )
+        val alreadyEnabled = NotificationCapabilitySnapshot(
+            runtimePermissionGranted = true,
+            appNotificationsEnabled = true,
+            channelExists = true,
+            channelBlocked = false,
+        )
+
+        assertEquals(
+            SystemNotificationAction.RequestPermission,
+            runtimePermissionDenied.resolveSystemNotificationAction(sdkInt = 33),
+        )
+        assertEquals(
+            SystemNotificationAction.OpenSettings,
+            runtimePermissionDenied.resolveSystemNotificationAction(sdkInt = 32),
+        )
+        assertEquals(
+            SystemNotificationAction.OpenSettings,
+            alreadyEnabled.resolveSystemNotificationAction(sdkInt = 34),
+        )
     }
 
     @Test

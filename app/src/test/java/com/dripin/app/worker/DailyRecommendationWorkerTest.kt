@@ -70,7 +70,7 @@ class DailyRecommendationWorkerTest {
     fun worker_skips_notification_when_no_batch_generated() = runBlocking {
         val notifier = FakeRecommendationNotifier()
         val scheduler = RecordingScheduler()
-        val store = FakeRecommendationStore(batch = null)
+        val store = FakeRecommendationStore(generatedBatch = null)
 
         val result = runDailyRecommendationWork(
             preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
@@ -90,7 +90,7 @@ class DailyRecommendationWorkerTest {
     fun worker_notifies_when_batch_is_created() = runBlocking {
         val notifier = FakeRecommendationNotifier()
         val scheduler = RecordingScheduler()
-        val store = FakeRecommendationStore(batch = TodayBatch(id = 1L, itemIds = listOf(2L, 1L)))
+        val store = FakeRecommendationStore(generatedBatch = TodayBatch(id = 1L, itemIds = listOf(2L, 1L)))
 
         runDailyRecommendationWork(
             preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
@@ -110,7 +110,7 @@ class DailyRecommendationWorkerTest {
     fun worker_records_posted_notification_delivery_result() = runBlocking {
         val notifier = FakeRecommendationNotifier()
         val scheduler = RecordingScheduler()
-        val store = FakeRecommendationStore(batch = TodayBatch(id = 7L, itemIds = listOf(2L, 1L)))
+        val store = FakeRecommendationStore(generatedBatch = TodayBatch(id = 7L, itemIds = listOf(2L, 1L)))
         val today = LocalDate.parse("2026-04-14")
 
         runDailyRecommendationWork(
@@ -138,7 +138,7 @@ class DailyRecommendationWorkerTest {
             result = NotificationPostResult.Blocked(NotificationCapabilityIssue.RuntimePermissionDenied)
         }
         val scheduler = RecordingScheduler()
-        val store = FakeRecommendationStore(batch = TodayBatch(id = 8L, itemIds = listOf(2L)))
+        val store = FakeRecommendationStore(generatedBatch = TodayBatch(id = 8L, itemIds = listOf(2L)))
 
         runDailyRecommendationWork(
             preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
@@ -155,6 +155,55 @@ class DailyRecommendationWorkerTest {
         assertEquals(NotificationCapabilityIssue.RuntimePermissionDenied.name, log.issue)
         assertEquals(1, log.itemCount)
         assertEquals(8L, log.batchId)
+    }
+
+    @Test
+    fun worker_notifies_existing_batch_when_it_has_not_been_posted_yet() = runBlocking {
+        val notifier = FakeRecommendationNotifier()
+        val scheduler = RecordingScheduler()
+        val store = FakeRecommendationStore(existingBatch = TodayBatch(id = 11L, itemIds = listOf(4L, 5L)))
+        val deliveredAt = Instant.parse("2026-04-16T13:00:00Z")
+
+        runDailyRecommendationWork(
+            preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
+            today = LocalDate.parse("2026-04-16"),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            recommendationStore = store,
+            scheduler = scheduler,
+            notifier = notifier,
+            clock = Clock.fixed(deliveredAt, ZoneOffset.UTC),
+        )
+
+        assertTrue(notifier.wasNotified)
+        assertEquals(2, notifier.lastCount)
+        assertEquals(listOf(11L to deliveredAt), store.markedPostedBatches)
+        val log = store.recordedLogs.single()
+        assertEquals(NotificationDeliveryStatus.POSTED, log.status)
+        assertEquals(11L, log.batchId)
+    }
+
+    @Test
+    fun worker_skips_duplicate_notification_for_batch_that_was_already_posted() = runBlocking {
+        val notifier = FakeRecommendationNotifier()
+        val scheduler = RecordingScheduler()
+        val store = FakeRecommendationStore(
+            existingBatch = TodayBatch(id = 12L, itemIds = listOf(6L)),
+            hasPostedNotification = true,
+        )
+
+        runDailyRecommendationWork(
+            preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
+            today = LocalDate.parse("2026-04-17"),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            recommendationStore = store,
+            scheduler = scheduler,
+            notifier = notifier,
+            clock = Clock.fixed(Instant.parse("2026-04-17T13:00:00Z"), ZoneOffset.UTC),
+        )
+
+        assertFalse(notifier.wasNotified)
+        assertTrue(store.markedPostedBatches.isEmpty())
+        assertTrue(store.recordedLogs.isEmpty())
     }
 }
 
@@ -184,22 +233,33 @@ private class RecordingScheduler : SchedulerController {
 }
 
 private class FakeRecommendationStore(
-    private val batch: TodayBatch?,
+    private val generatedBatch: TodayBatch? = null,
+    private val existingBatch: TodayBatch? = null,
+    private val hasPostedNotification: Boolean = false,
 ) : RecommendationStore {
     val recordedLogs = mutableListOf<NotificationDeliveryLog>()
+    val markedPostedBatches = mutableListOf<Pair<Long, Instant>>()
 
     override suspend fun generateTodayBatch(
         preferences: UserPreferences,
         today: LocalDate,
-    ): TodayBatch? = batch
+    ): TodayBatch? = generatedBatch
 
-    override suspend fun getTodayBatch(today: LocalDate): TodayBatch? = null
+    override suspend fun getTodayBatch(today: LocalDate): TodayBatch? = existingBatch
 
     override suspend fun getTodayItems(today: LocalDate): List<SavedItemEntity> = emptyList()
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = emptyFlow()
 
+    override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
+
     override suspend fun markItemRead(itemId: Long) = Unit
+
+    override suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant) {
+        markedPostedBatches += batchId to deliveredAt
+    }
+
+    override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean = hasPostedNotification
 
     override suspend fun recordNotificationDelivery(log: NotificationDeliveryLog) {
         recordedLogs += log

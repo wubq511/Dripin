@@ -74,4 +74,14 @@ interface DailyRecommendationDao {
         """,
     )
     fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>>
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM notification_delivery_logs
+            WHERE batchId = :batchId AND status = 'POSTED'
+        )
+        """,
+    )
+    suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean
 }

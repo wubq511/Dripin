@@ -8,6 +8,7 @@ import com.dripin.app.feature.capture.SaveItemUiState
 import com.dripin.app.feature.detail.DetailUiState
 import com.dripin.app.feature.recommendation.TodayCardModel
 import com.dripin.app.feature.settings.SettingsUiState
+import com.dripin.app.worker.NotificationCapabilitySnapshot
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -21,6 +22,11 @@ data class PrototypeSettingsUi(
     val repeatUnreadEnabled: Boolean,
     val sortModeLabel: String,
 )
+
+internal enum class SystemNotificationAction {
+    RequestPermission,
+    OpenSettings,
+}
 
 internal fun SavedItemEntity.toInboxItemUi(
     now: Instant,
@@ -139,7 +145,16 @@ internal fun SettingsUiState.toSettingsScreenState(): SettingsScreenState {
         reminderSubtitle = mapped.reminderSubtitle,
         repeatUnreadEnabled = mapped.repeatUnreadEnabled,
         sortModeLabel = mapped.sortModeLabel,
+        systemNotification = notificationCapability.toSystemNotificationUi(),
     )
+}
+
+internal fun NotificationCapabilitySnapshot.resolveSystemNotificationAction(
+    sdkInt: Int,
+): SystemNotificationAction = if (sdkInt >= 33 && !runtimePermissionGranted) {
+    SystemNotificationAction.RequestPermission
+} else {
+    SystemNotificationAction.OpenSettings
 }
 
 internal fun SaveItemUiState.toCaptureScreenState(
@@ -245,6 +260,23 @@ private fun ContentType.toTagLabel(): String = when (this) {
     ContentType.LINK -> "链接"
     ContentType.TEXT -> "文字"
     ContentType.IMAGE -> "图片"
+}
+
+private fun NotificationCapabilitySnapshot.toSystemNotificationUi(): SystemNotificationUi {
+    val systemNotificationEnabled = runtimePermissionGranted && appNotificationsEnabled
+    val detail = when {
+        !runtimePermissionGranted -> "系统还没授予通知权限，Dripin 现在发不出提醒。"
+        !appNotificationsEnabled -> "系统里已经关闭 Dripin 通知，开启后才能收到提醒。"
+        channelBlocked -> "系统通知已开启，但“每日推荐”频道被关闭，建议去通知设置里检查。"
+        else -> "系统通知已开启，Dripin 可以正常发送提醒。"
+    }
+
+    return SystemNotificationUi(
+        enabled = systemNotificationEnabled,
+        statusLabel = if (systemNotificationEnabled) "已开启" else "未开启",
+        detail = detail,
+        actionLabel = if (systemNotificationEnabled) "管理通知" else "开启系统通知",
+    )
 }
 
 private fun String?.toNotificationHistoryDetail(): String = when (this) {

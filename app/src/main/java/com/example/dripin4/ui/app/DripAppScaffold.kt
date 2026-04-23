@@ -99,6 +99,7 @@ fun DripApp() {
             onSettingsIncreaseDailyCount = appState::increaseDailyCount,
             onSettingsToggle = appState::toggleSetting,
             onSettingsOpenReminderTime = {},
+            onSettingsSystemNotificationAction = {},
         )
     }
 }
@@ -147,6 +148,7 @@ fun DripAppScaffold(
     onSettingsIncreaseDailyCount: () -> Unit,
     onSettingsToggle: (SettingsToggleKey, Boolean) -> Unit,
     onSettingsOpenReminderTime: () -> Unit,
+    onSettingsSystemNotificationAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val todayBackdrop = rememberLayerBackdrop()
@@ -265,6 +267,7 @@ fun DripAppScaffold(
                     onSettingsIncreaseDailyCount = onSettingsIncreaseDailyCount,
                     onSettingsToggle = onSettingsToggle,
                     onSettingsOpenReminderTime = onSettingsOpenReminderTime,
+                    onSettingsSystemNotificationAction = onSettingsSystemNotificationAction,
                     todayBackdrop = todayBackdrop,
                     modifier = Modifier.padding(
                         PaddingValues(
@@ -344,6 +347,7 @@ private fun ScreenHost(
     onSettingsIncreaseDailyCount: () -> Unit,
     onSettingsToggle: (SettingsToggleKey, Boolean) -> Unit,
     onSettingsOpenReminderTime: () -> Unit,
+    onSettingsSystemNotificationAction: () -> Unit,
     todayBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
     modifier: Modifier = Modifier
 ) {
@@ -406,6 +410,7 @@ private fun ScreenHost(
                 onIncreaseDailyCount = onSettingsIncreaseDailyCount,
                 onToggleSetting = onSettingsToggle,
                 onOpenReminderTime = onSettingsOpenReminderTime,
+                onSystemNotificationAction = onSettingsSystemNotificationAction,
             )
         }
     }

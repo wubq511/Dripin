@@ -1,7 +1,11 @@
 package com.example.dripin4.ui.app
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
@@ -11,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -19,6 +24,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dripin.app.core.model.RecommendationSortMode
@@ -50,6 +58,7 @@ fun DripRuntimeApp(
     onCaptureFinished: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val zoneId = remember { ZoneId.systemDefault() }
     val controller = remember(initialCapturePayload) { DripRuntimeSessionController(initialCapturePayload) }
     val appState = remember(controller.currentDestination) { DripAppState(initialDestination = controller.currentDestination) }
@@ -126,6 +135,11 @@ fun DripRuntimeApp(
     val settingsState = remember(settingsUiState) { settingsUiState.toSettingsScreenState() }
     val notificationHistory by recommendationRepository.observeNotificationDeliveryLogs(limit = 20)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {
+        settingsViewModel.refreshNotificationStatus()
+    }
 
     val detailViewModelOrNull: DetailViewModel? = activeDetailId?.toLongOrNull()?.let { itemId ->
         viewModel(
@@ -229,6 +243,22 @@ fun DripRuntimeApp(
     LaunchedEffect(launchIntent) {
         if (launchIntent?.dataString == "dripin://today") {
             appState.navigateTo(DripDestination.Today)
+        }
+    }
+
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.refreshNotificationStatus()
+    }
+
+    DisposableEffect(lifecycleOwner, settingsViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                settingsViewModel.refreshNotificationStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -364,6 +394,26 @@ fun DripRuntimeApp(
                 }
             },
             onSettingsOpenReminderTime = { showTimePicker = true },
+            onSettingsSystemNotificationAction = {
+                when (settingsUiState.notificationCapability.resolveSystemNotificationAction(Build.VERSION.SDK_INT)) {
+                    SystemNotificationAction.RequestPermission -> {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+
+                    SystemNotificationAction.OpenSettings -> {
+                        openAppNotificationSettings(context)
+                    }
+                }
+            },
         )
     }
+}
+
+private fun openAppNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        putExtra("android.provider.extra.APP_PACKAGE", context.packageName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    context.startActivity(intent)
 }

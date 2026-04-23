@@ -52,6 +52,7 @@ class TodayViewModel(
 
     init {
         scope.launch {
+            repository.reconcileTodayBatchPushState(today)
             maybeGenerateBatchIfDue()
             repository.observeTodayItems(today).collect { items ->
                 _uiState.value = TodayUiState(

@@ -27,7 +27,7 @@ import org.junit.Test
 
 class RecommendationRepositoryTest {
     @Test
-    fun selects_unread_items_and_respects_repeat_rule() = runBlocking {
+    fun selects_unread_items_and_marks_recommendation_without_counting_as_push() = runBlocking {
         val savedItemDao = FakeSavedItemDao(
             listOf(
                 fakeLinkItem(id = 1L, isRead = false, pushCount = 0),
@@ -52,7 +52,8 @@ class RecommendationRepositoryTest {
         )
 
         assertEquals(listOf(1L), batch?.itemIds)
-        assertEquals(1, savedItemDao.requireItem(1L).pushCount)
+        assertEquals(0, savedItemDao.requireItem(1L).pushCount)
+        assertNull(savedItemDao.requireItem(1L).lastPushedAt)
         assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(1L).lastRecommendedDate)
         assertNull(savedItemDao.requireItem(2L).lastRecommendedDate)
         assertNotNull(recommendationDao.getBatchForDate(LocalDate.parse("2026-04-14")))
@@ -126,6 +127,87 @@ class RecommendationRepositoryTest {
             listOf(NotificationDeliveryStatus.BLOCKED, NotificationDeliveryStatus.POSTED),
             logs.map(NotificationDeliveryLog::status),
         )
+    }
+
+    @Test
+    fun markBatchPosted_updates_push_count_and_timestamp_only_after_delivery() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = false, pushCount = 0),
+                fakeTextItem(id = 2L, isRead = false, pushCount = 0),
+            ),
+        )
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao)
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+            clock = Clock.fixed(Instant.parse("2026-04-14T09:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val batch = checkNotNull(
+            repository.generateTodayBatch(
+                preferences = UserPreferences(
+                    dailyPushCount = 2,
+                    repeatPushedUnreadItems = true,
+                    recommendationSortMode = RecommendationSortMode.OLDEST_SAVED_FIRST,
+                ),
+                today = LocalDate.parse("2026-04-14"),
+            ),
+        )
+        val deliveredAt = Instant.parse("2026-04-14T13:00:00Z")
+
+        repository.markBatchPosted(
+            batchId = batch.id,
+            deliveredAt = deliveredAt,
+        )
+
+        assertEquals(1, savedItemDao.requireItem(1L).pushCount)
+        assertEquals(1, savedItemDao.requireItem(2L).pushCount)
+        assertEquals(deliveredAt, savedItemDao.requireItem(1L).lastPushedAt)
+        assertEquals(deliveredAt, savedItemDao.requireItem(2L).lastPushedAt)
+        assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(1L).lastRecommendedDate)
+        assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(2L).lastRecommendedDate)
+    }
+
+    @Test
+    fun reconcileTodayBatchPushState_removes_phantom_push_count_for_unposted_batch() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = false, pushCount = 1).copy(
+                    lastPushedAt = Instant.parse("2026-04-14T09:00:00Z"),
+                    lastRecommendedDate = LocalDate.parse("2026-04-14"),
+                ),
+            ),
+        )
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao).apply {
+            val batchId = insertBatch(
+                DailyRecommendationEntity(
+                    recommendedDate = LocalDate.parse("2026-04-14"),
+                    createdAt = Instant.parse("2026-04-14T09:00:00Z"),
+                    itemCount = 1,
+                ),
+            )
+            insertBatchItems(
+                listOf(
+                    DailyRecommendationItemEntity(
+                        batchId = batchId,
+                        itemId = 1L,
+                        displayOrder = 0,
+                    ),
+                ),
+            )
+        }
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+            clock = Clock.fixed(Instant.parse("2026-04-14T13:00:00Z"), ZoneOffset.UTC),
+        )
+
+        repository.reconcileTodayBatchPushState(LocalDate.parse("2026-04-14"))
+
+        assertEquals(0, savedItemDao.requireItem(1L).pushCount)
+        assertNull(savedItemDao.requireItem(1L).lastPushedAt)
+        assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(1L).lastRecommendedDate)
     }
 }
 
@@ -208,6 +290,10 @@ private class FakeDailyRecommendationDao(
 
     override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>> {
         return notificationLogs
+    }
+
+    override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean {
+        return notificationLogs.value.any { it.batchId == batchId && it.status == NotificationDeliveryStatus.POSTED }
     }
 }
 

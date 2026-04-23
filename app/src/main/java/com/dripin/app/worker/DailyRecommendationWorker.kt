@@ -67,18 +67,26 @@ suspend fun runDailyRecommendationWork(
         return ListenableWorker.Result.success()
     }
 
+    recommendationStore.reconcileTodayBatchPushState(today)
     val existingBatch = recommendationStore.getTodayBatch(today)
     val batch = existingBatch ?: recommendationStore.generateTodayBatch(
         preferences = preferences,
         today = today,
     )
 
-    if (existingBatch == null && batch != null && batch.itemIds.isNotEmpty()) {
+    if (batch != null && batch.itemIds.isNotEmpty() && !recommendationStore.hasPostedNotificationForBatch(batch.id)) {
+        val attemptedAt = clock.instant()
         val notificationResult = notifier.showDailyRecommendation(batch.itemIds.size)
+        if (notificationResult == NotificationPostResult.Posted) {
+            recommendationStore.markBatchPosted(
+                batchId = batch.id,
+                deliveredAt = attemptedAt,
+            )
+        }
         recommendationStore.recordNotificationDelivery(
             NotificationDeliveryLog(
                 recommendedDate = today,
-                attemptedAt = clock.instant(),
+                attemptedAt = attemptedAt,
                 itemCount = batch.itemIds.size,
                 status = notificationResult.toDeliveryStatus(),
                 issue = notificationResult.toDeliveryIssue(),

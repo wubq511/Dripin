@@ -70,6 +70,14 @@ data class SettingsScreenState(
     val reminderSubtitle: String,
     val repeatUnreadEnabled: Boolean,
     val sortModeLabel: String,
+    val systemNotification: SystemNotificationUi,
+)
+
+data class SystemNotificationUi(
+    val enabled: Boolean,
+    val statusLabel: String,
+    val detail: String,
+    val actionLabel: String,
 )
 
 data class NotificationHistoryUi(
@@ -185,6 +193,12 @@ internal fun DripAppState.toSettingsScreenState(): SettingsScreenState = Setting
     reminderSubtitle = DripStrings.UtilityReminderSubtitle,
     repeatUnreadEnabled = true,
     sortModeLabel = "最早优先",
+    systemNotification = SystemNotificationUi(
+        enabled = true,
+        statusLabel = "已开启",
+        detail = "系统通知已开启，Dripin 可以正常发送提醒。",
+        actionLabel = "管理通知",
+    ),
 )
 
 internal fun DripAppState.toNotificationHistory(): List<NotificationHistoryUi> = listOf(
