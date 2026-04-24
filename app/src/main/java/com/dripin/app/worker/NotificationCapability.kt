@@ -1,12 +1,13 @@
 package com.dripin.app.worker
 
-import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+
+const val PostNotificationsPermission = "android.permission.POST_NOTIFICATIONS"
 
 data class NotificationCapabilitySnapshot(
     val runtimePermissionGranted: Boolean,
@@ -46,15 +47,11 @@ class AndroidNotificationCapabilityReader(
         } else {
             ContextCompat.checkSelfPermission(
                 context,
-                Manifest.permission.POST_NOTIFICATIONS,
+                PostNotificationsPermission,
             ) == PackageManager.PERMISSION_GRANTED
         }
-        val channel = if (Build.VERSION.SDK_INT >= 26) {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.getNotificationChannel(channelId)
-        } else {
-            null
-        }
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = manager.getNotificationChannel(channelId)
         val channelExists = channel != null
         val channelBlocked = channel?.importance == NotificationManager.IMPORTANCE_NONE
 

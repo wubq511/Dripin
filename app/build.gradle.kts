@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.android.legacy-kapt")
-    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -53,8 +52,6 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
     implementation("org.jsoup:jsoup:1.22.1")
-    implementation("com.google.dagger:hilt-android:2.59.2")
-    kapt("com.google.dagger:hilt-compiler:2.59.2")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

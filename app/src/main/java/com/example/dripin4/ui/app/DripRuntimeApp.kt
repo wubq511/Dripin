@@ -1,6 +1,6 @@
 package com.example.dripin4.ui.app
 
-import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -29,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dripin.app.core.common.ExternalOriginalLink
 import com.dripin.app.core.model.RecommendationSortMode
 import com.dripin.app.data.repository.RecommendationStore
 import com.dripin.app.data.repository.SavedItemStore
@@ -41,6 +42,7 @@ import com.dripin.app.feature.recommendation.TodayViewModelFactory
 import com.dripin.app.feature.settings.SettingsViewModel
 import com.dripin.app.feature.settings.SettingsViewModelFactory
 import com.dripin.app.worker.AndroidNotificationCapabilityReader
+import com.dripin.app.worker.PostNotificationsPermission
 import com.example.dripin4.ui.designsystem.DripTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -349,7 +351,7 @@ fun DripRuntimeApp(
             },
             onDetailPrimaryAction = {
                 val rawUrl = detailUiState?.item?.rawUrl ?: return@DripAppScaffold
-                context.startActivity(Intent(Intent.ACTION_VIEW, rawUrl.toUri()))
+                openExternalOriginalLink(context, rawUrl)
                 if (detailUiState?.item?.isRead == false) {
                     detailViewModelOrNull?.markRead()
                 }
@@ -397,7 +399,11 @@ fun DripRuntimeApp(
             onSettingsSystemNotificationAction = {
                 when (settingsUiState.notificationCapability.resolveSystemNotificationAction(Build.VERSION.SDK_INT)) {
                     SystemNotificationAction.RequestPermission -> {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            notificationPermissionLauncher.launch(PostNotificationsPermission)
+                        } else {
+                            openAppNotificationSettings(context)
+                        }
                     }
 
                     SystemNotificationAction.OpenSettings -> {
@@ -416,4 +422,24 @@ private fun openAppNotificationSettings(context: Context) {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     context.startActivity(intent)
+}
+
+private fun openExternalOriginalLink(context: Context, rawUrl: String) {
+    for (target in ExternalOriginalLink.resolveTargets(rawUrl)) {
+        val intent = Intent(Intent.ACTION_VIEW, target.url.toUri()).apply {
+            if (target.packageName != null && target.className != null) {
+                setClassName(target.packageName, target.className)
+            } else {
+                target.packageName?.let(::setPackage)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        try {
+            context.startActivity(intent)
+            return
+        } catch (_: ActivityNotFoundException) {
+            // Try the next target, usually the original web URL.
+        }
+    }
 }

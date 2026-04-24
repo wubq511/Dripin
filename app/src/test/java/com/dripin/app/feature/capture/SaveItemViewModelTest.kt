@@ -1,6 +1,5 @@
 package com.dripin.app.feature.capture
 
-import androidx.lifecycle.SavedStateHandle
 import com.dripin.app.core.common.SourcePlatformClassifier
 import com.dripin.app.core.common.TopicClassifier
 import com.dripin.app.core.model.ContentType
@@ -38,7 +37,6 @@ class SaveItemViewModelTest {
             repository = FakeSavedItemStore(),
             sourcePlatformClassifier = SourcePlatformClassifier,
             topicClassifier = TopicClassifier,
-            savedStateHandle = SavedStateHandle(),
             workerDispatcher = Dispatchers.Unconfined,
         )
 
@@ -60,7 +58,6 @@ class SaveItemViewModelTest {
             repository = FakeSavedItemStore(),
             sourcePlatformClassifier = SourcePlatformClassifier,
             topicClassifier = TopicClassifier,
-            savedStateHandle = SavedStateHandle(),
             workerDispatcher = Dispatchers.Unconfined,
         )
 

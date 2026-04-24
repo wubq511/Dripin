@@ -1,6 +1,5 @@
 package com.dripin.app.feature.capture
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.dripin.app.core.common.SourcePlatformClassifier
@@ -29,7 +28,6 @@ class SaveItemViewModel(
     private val repository: SavedItemStore,
     private val sourcePlatformClassifier: SourcePlatformClassifier = SourcePlatformClassifier,
     private val topicClassifier: TopicClassifier = TopicClassifier,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val scope = CoroutineScope(SupervisorJob() + workerDispatcher)
@@ -45,12 +43,10 @@ class SaveItemViewModel(
 
     fun onTitleChanged(value: String) {
         hasUserEditedTitle = true
-        savedStateHandle["title"] = value
         _uiState.update { it.copy(title = value) }
     }
 
     fun onNoteChanged(value: String) {
-        savedStateHandle["note"] = value
         _uiState.update { it.copy(note = value) }
     }
 
@@ -88,9 +84,6 @@ class SaveItemViewModel(
     }
 
     fun onSharedUrlChanged(value: String) {
-        if (!hasUserEditedTitle) {
-            savedStateHandle["title"] = ""
-        }
         _uiState.update { current ->
             deriveState(
                 current.copy(

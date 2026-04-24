@@ -3,11 +3,14 @@ package com.dripin.app.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.util.Log
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.dripin.app.MainActivity
 
@@ -34,6 +37,14 @@ class AndroidRecommendationNotifier(
     private val capabilityReader: NotificationCapabilityReader = AndroidNotificationCapabilityReader(context),
 ) : RecommendationNotifier {
     override fun showDailyRecommendation(count: Int): NotificationPostResult {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                context,
+                PostNotificationsPermission,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return NotificationPostResult.Blocked(NotificationCapabilityIssue.RuntimePermissionDenied)
+        }
+
         val capability = capabilityReader.read()
         capability.primaryIssue()?.let { issue ->
             Log.w(
@@ -62,6 +73,10 @@ class AndroidRecommendationNotifier(
             )
             NotificationPostResult.Posted
         }.getOrElse { throwable ->
+            if (throwable is SecurityException) {
+                Log.w(Tag, "Notification permission check became stale before notify()", throwable)
+                return NotificationPostResult.Blocked(NotificationCapabilityIssue.RuntimePermissionDenied)
+            }
             Log.w(Tag, "Failed to post daily recommendation notification", throwable)
             NotificationPostResult.Failed(
                 reason = throwable.message,

@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.dripin4.ui.designsystem.DripColors
 import com.example.dripin4.ui.designsystem.DripMotion
@@ -325,7 +326,7 @@ fun GlassSwitch(
     ) {
         Box(
             modifier = Modifier
-                .offset(x = thumbOffset)
+                .offset { IntOffset(x = thumbOffset.roundToPx(), y = 0) }
                 .align(Alignment.CenterStart)
                 .size(24.dp)
                 .clip(CircleShape)

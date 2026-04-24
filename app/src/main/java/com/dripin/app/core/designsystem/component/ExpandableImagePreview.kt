@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -41,9 +42,9 @@ fun ExpandableImagePreview(
     height: Dp = 220.dp,
 ) {
     var isExpanded by rememberSaveable(imageUri) { mutableStateOf(false) }
-    var zoomScale by rememberSaveable(imageUri) { mutableStateOf(1f) }
-    var panX by rememberSaveable(imageUri) { mutableStateOf(0f) }
-    var panY by rememberSaveable(imageUri) { mutableStateOf(0f) }
+    var zoomScale by rememberSaveable(imageUri) { mutableFloatStateOf(1f) }
+    var panX by rememberSaveable(imageUri) { mutableFloatStateOf(0f) }
+    var panY by rememberSaveable(imageUri) { mutableFloatStateOf(0f) }
     val dismissExpanded = {
         isExpanded = false
         zoomScale = 1f

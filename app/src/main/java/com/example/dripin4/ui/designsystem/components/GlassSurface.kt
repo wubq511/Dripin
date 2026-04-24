@@ -25,9 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
@@ -76,7 +78,11 @@ fun GlassBackdropAtmosphereLayer(
 
         Box(
             modifier = Modifier
-                .fillMaxWidth(1.5f)
+                .fillMaxWidth()
+                .graphicsLayer(
+                    scaleX = 1.5f,
+                    transformOrigin = TransformOrigin(1f, 0.5f),
+                )
                 .height(650.dp)
                 .align(Alignment.TopEnd)
                 .clip(CircleShape)
@@ -168,7 +174,11 @@ fun GlassScaffoldBackground(
 
         Box(
             modifier = Modifier
-                .fillMaxWidth(1.5f)
+                .fillMaxWidth()
+                .graphicsLayer(
+                    scaleX = 1.5f,
+                    transformOrigin = TransformOrigin(1f, 0.5f),
+                )
                 .height(650.dp)
                 .align(Alignment.TopEnd)
                 .clip(CircleShape)

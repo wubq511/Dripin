@@ -5,7 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.dripin.app.core.model.PushFilter
 import com.dripin.app.core.model.ReadFilter
 import com.example.dripin4.ui.content.DripStrings
@@ -40,9 +39,6 @@ import com.example.dripin4.ui.features.settings.SettingsScreen
 import com.example.dripin4.ui.features.today.TodayScreen
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-
-@Composable
-fun rememberDripAppState(): DripAppState = remember { DripAppState() }
 
 @Composable
 fun DripApp() {
@@ -225,7 +221,7 @@ fun DripAppScaffold(
                         todayBackdrop = todayBackdrop
                     )
                 }
-            ) {
+            ) { innerPadding ->
                 ScreenHost(
                     appState = appState,
                     inboxState = inboxState,
@@ -269,14 +265,7 @@ fun DripAppScaffold(
                     onSettingsOpenReminderTime = onSettingsOpenReminderTime,
                     onSettingsSystemNotificationAction = onSettingsSystemNotificationAction,
                     todayBackdrop = todayBackdrop,
-                    modifier = Modifier.padding(
-                        PaddingValues(
-                            start = 0.dp,
-                            top = 0.dp,
-                            end = 0.dp,
-                            bottom = 0.dp
-                        )
-                    )
+                    modifier = Modifier.consumeWindowInsets(innerPadding),
                 )
             }
 
