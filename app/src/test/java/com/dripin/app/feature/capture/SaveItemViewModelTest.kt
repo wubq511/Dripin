@@ -21,6 +21,42 @@ import org.junit.Test
 
 class SaveItemViewModelTest {
     @Test
+    fun manual_link_input_extracts_url_from_share_text_and_keeps_context() = runBlocking {
+        val requestedUrls = mutableListOf<String>()
+        val viewModel = SaveItemViewModel(
+            initialPayload = IncomingSharePayload(
+                contentType = ContentType.LINK,
+                isManualEntry = true,
+            ),
+            metadataFetcher = LinkMetadataReader { url ->
+                requestedUrls += url
+                null
+            },
+            repository = FakeSavedItemStore(),
+            sourcePlatformClassifier = SourcePlatformClassifier,
+            topicClassifier = TopicClassifier,
+            workerDispatcher = Dispatchers.Unconfined,
+        )
+        val pastedText = """
+            GPT Image 2 真的有点离谱 🤯 我只给了他我的情绪板 +... http://xhslink.com/o/5XyrHTmge6N
+            复制文本并前往【小红书】，直接就能阅读笔记。
+        """.trimIndent()
+
+        viewModel.onSharedUrlChanged(pastedText)
+
+        assertEquals("http://xhslink.com/o/5XyrHTmge6N", viewModel.uiState.value.sharedUrl)
+        assertEquals(
+            "GPT Image 2 真的有点离谱 🤯 我只给了他我的情绪板 +...\n复制文本并前往【小红书】，直接就能阅读笔记。",
+            viewModel.uiState.value.sharedText,
+        )
+        assertEquals("GPT Image 2 真的有点离谱 🤯", viewModel.uiState.value.title)
+        assertEquals("小红书", viewModel.uiState.value.sourcePlatform)
+        assertEquals(listOf("xhslink.com", "小红书"), viewModel.uiState.value.autoTags)
+        assertEquals(listOf("http://xhslink.com/o/5XyrHTmge6N"), requestedUrls)
+        assertTrue(viewModel.uiState.value.canSave)
+    }
+
+    @Test
     fun link_without_title_fetches_metadata_and_keeps_manual_override() = runBlocking {
         val metadataFetcher = LinkMetadataReader {
             delay(50)

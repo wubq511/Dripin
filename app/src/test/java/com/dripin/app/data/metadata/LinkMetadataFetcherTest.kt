@@ -1,6 +1,7 @@
 package com.dripin.app.data.metadata
 
 import kotlinx.coroutines.runBlocking
+import java.net.UnknownServiceException
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -9,9 +10,98 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LinkMetadataFetcherTest {
+    @Test
+    fun invalid_url_returns_null_without_starting_request() = runBlocking {
+        val interceptor = RecordingInterceptor(
+            FakeResponse(
+                code = 200,
+                body = "<html></html>",
+            ),
+        )
+        val fetcher = LinkMetadataFetcher(
+            OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .build(),
+        )
+
+        val metadata = fetcher.fetch(
+            "GPT Image 2 真的有点离谱 http://xhslink.com/o/5XyrHTmge6N 复制文本并前往【小红书】",
+        )
+
+        assertNull(metadata)
+        assertTrue(interceptor.requests.isEmpty())
+    }
+
+    @Test
+    fun cleartext_block_returns_null_without_crashing() = runBlocking {
+        val fetcher = LinkMetadataFetcher(
+            OkHttpClient.Builder()
+                .addInterceptor { throw UnknownServiceException("CLEARTEXT communication not permitted") }
+                .build(),
+        )
+
+        val metadata = fetcher.fetch("http://xhslink.com/o/5XyrHTmge6N")
+
+        assertNull(metadata)
+    }
+
+    @Test
+    fun xiaohongshu_short_link_uses_https_and_extracts_note_title() = runBlocking {
+        val interceptor = RecordingInterceptor(
+            FakeResponse(
+                code = 200,
+                body = """
+                    <html>
+                      <head><title>小红书</title></head>
+                      <body>
+                        <div class="reds-text fs18 fw500 title">GPT Image 2 真的有点离谱 🤯</div>
+                      </body>
+                    </html>
+                """.trimIndent(),
+            ),
+        )
+        val fetcher = LinkMetadataFetcher(
+            OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .build(),
+        )
+
+        val metadata = fetcher.fetch("http://xhslink.com/o/5XyrHTmge6N")
+
+        assertEquals("GPT Image 2 真的有点离谱 🤯", metadata?.title)
+        assertEquals("https", interceptor.requests.single().url.scheme)
+        assertEquals("xhslink.com", interceptor.requests.single().url.host)
+    }
+
+    @Test
+    fun xiaohongshu_site_title_is_not_used_as_note_title() = runBlocking {
+        val interceptor = RecordingInterceptor(
+            FakeResponse(
+                code = 200,
+                body = "<html><head><title>小红书</title></head><body></body></html>",
+            ),
+            FakeResponse(
+                code = 200,
+                body = "<html><head><title>小红书</title></head><body></body></html>",
+            ),
+        )
+        val fetcher = LinkMetadataFetcher(
+            OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .build(),
+        )
+
+        val metadata = fetcher.fetch("http://xhslink.com/o/5XyrHTmge6N")
+
+        assertNull(metadata)
+        assertEquals(1, interceptor.requests.size)
+    }
+
     @Test
     fun x_status_fetches_title_from_official_oembed() = runBlocking {
         val interceptor = RecordingInterceptor(

@@ -1,9 +1,11 @@
 package com.dripin.app.data.metadata
 
 import com.dripin.app.core.common.ExternalOriginalLink
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -16,7 +18,11 @@ class LinkMetadataFetcher(
     private val client: OkHttpClient,
 ) : LinkMetadataReader {
     override suspend fun fetch(url: String): LinkMetadata? = withContext(Dispatchers.IO) {
-        fetchXPostMetadata(url) ?: fetchGenericMetadata(url)
+        fetchXPostMetadata(url)?.let { return@withContext it }
+        if (url.isXiaohongshuUrl()) {
+            return@withContext fetchXiaohongshuMetadata(url)
+        }
+        fetchGenericMetadata(url)
     }
 
     private fun fetchXPostMetadata(url: String): LinkMetadata? {
@@ -30,43 +36,74 @@ class LinkMetadataFetcher(
 
         val request = metadataRequest(oembedUrl.toString())
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
 
-            val payload = response.body.string()
-            val authorName = extractJsonStringField(payload, "author_name")
-                ?.trim()
-                ?.ifBlank { null }
-            val html = extractJsonStringField(payload, "html").orEmpty()
-            val postText = extractXPostText(html)?.toTitleSnippet()
-            val title = when {
-                authorName != null && postText != null -> "$authorName：$postText"
-                postText != null -> postText
-                authorName != null -> authorName
-                else -> null
+                val payload = response.body.string()
+                val authorName = extractJsonStringField(payload, "author_name")
+                    ?.trim()
+                    ?.ifBlank { null }
+                val html = extractJsonStringField(payload, "html").orEmpty()
+                val postText = extractXPostText(html)?.toTitleSnippet()
+                val title = when {
+                    authorName != null && postText != null -> "$authorName：$postText"
+                    postText != null -> postText
+                    authorName != null -> authorName
+                    else -> null
+                }
+
+                return title?.let { LinkMetadata(title = it) }
             }
-
-            return title?.let { LinkMetadata(title = it) }
+        } catch (_: IOException) {
+            return null
         }
     }
 
     private fun fetchGenericMetadata(url: String): LinkMetadata? {
-        val request = metadataRequest(url)
+        val httpUrl = url.toHttpUrlOrNull() ?: return null
+        val request = metadataRequest(httpUrl.toString())
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
 
-            val html = response.body.string()
-            val document = Jsoup.parse(html)
-            val title = document.selectFirst("meta[property=og:title]")?.attr("content")
-                ?.ifBlank { null }
-                ?: document.selectFirst("meta[name=twitter:title]")?.attr("content")
-                ?.ifBlank { null }
-                ?: document.selectFirst("meta[name=title]")?.attr("content")
-                ?.ifBlank { null }
-                ?: document.title().ifBlank { null }
+                val html = response.body.string()
+                val document = Jsoup.parse(html)
+                val title = document.selectFirst("meta[property=og:title]")?.attr("content")
+                    ?.ifBlank { null }
+                    ?: document.selectFirst("meta[name=twitter:title]")?.attr("content")
+                    ?.ifBlank { null }
+                    ?: document.selectFirst("meta[name=title]")?.attr("content")
+                    ?.ifBlank { null }
+                    ?: document.title().ifBlank { null }
 
-            return LinkMetadata(title = title)
+                return LinkMetadata(title = title)
+            }
+        } catch (_: IOException) {
+            return null
+        }
+    }
+
+    private fun fetchXiaohongshuMetadata(url: String): LinkMetadata? {
+        val httpUrl = url.toHttpUrlOrNull() ?: return null
+        if (!httpUrl.host.isXiaohongshuHost()) return null
+
+        val metadataUrl = httpUrl.newBuilder()
+            .scheme("https")
+            .build()
+        val request = metadataRequest(metadataUrl.toString())
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+
+                val document = Jsoup.parse(response.body.string())
+                val title = document.extractXiaohongshuTitle() ?: return null
+                return LinkMetadata(title = title)
+            }
+        } catch (_: IOException) {
+            return null
         }
     }
 
@@ -87,6 +124,26 @@ class LinkMetadataFetcher(
         return document.selectFirst("blockquote.twitter-tweet p")?.text()
             ?.ifBlank { null }
             ?: document.selectFirst("p")?.text()?.ifBlank { null }
+    }
+
+    private fun org.jsoup.nodes.Document.extractXiaohongshuTitle(): String? {
+        return selectFirst("div.title")?.text()
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            ?.ifBlank { null }
+            ?.takeUnless { it == "小红书" }
+    }
+
+    private fun String.isXiaohongshuHost(): Boolean {
+        val normalized = lowercase()
+        return normalized == "xhslink.com" ||
+            normalized == "www.xhslink.com" ||
+            normalized == "xiaohongshu.com" ||
+            normalized == "www.xiaohongshu.com"
+    }
+
+    private fun String.isXiaohongshuUrl(): Boolean {
+        return toHttpUrlOrNull()?.host?.isXiaohongshuHost() == true
     }
 
     private fun extractJsonStringField(json: String, fieldName: String): String? {

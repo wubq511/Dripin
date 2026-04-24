@@ -85,9 +85,14 @@ class SaveItemViewModel(
 
     fun onSharedUrlChanged(value: String) {
         _uiState.update { current ->
+            val parsedInput = parseSharedUrlInput(
+                value = value,
+                existingSharedText = current.sharedText,
+            )
             deriveState(
                 current.copy(
-                    sharedUrl = value.trim().ifBlank { null },
+                    sharedUrl = parsedInput.url,
+                    sharedText = parsedInput.sharedText,
                     title = if (hasUserEditedTitle) current.title else "",
                     duplicateExistingItemId = null,
                 ),
@@ -224,14 +229,18 @@ class SaveItemViewModel(
     private fun fetchMetadataIfNeeded() {
         val state = uiState.value
         if (state.contentType != ContentType.LINK) return
-        if (state.sharedUrl.isNullOrBlank()) return
+        val sharedUrl = state.sharedUrl ?: return
+        if (sharedUrl.isBlank()) return
+        if (sharedUrl.toHttpUrlOrNull() == null) return
         if (state.title.isNotBlank()) return
 
         scope.launch {
             if (hasUserEditedTitle) return@launch
-            val metadata = metadataFetcher.fetch(state.sharedUrl)
+            val metadata = metadataFetcher.fetch(sharedUrl)
             val fetchedTitle = metadata?.title?.trim().orEmpty()
-            val fallbackTitle = state.sourcePlatform?.let { "$it 内容" } ?: state.sourceDomain
+            val fallbackTitle = state.xiaohongshuShareTitle()
+                ?: state.sourcePlatform?.let { "$it 内容" }
+                ?: state.sourceDomain
             val resolvedTitle = fetchedTitle.ifBlank { fallbackTitle.orEmpty() }
             if (resolvedTitle.isBlank()) return@launch
 
@@ -243,6 +252,67 @@ class SaveItemViewModel(
                 }
             }
         }
+    }
+
+    private fun parseSharedUrlInput(
+        value: String,
+        existingSharedText: String?,
+    ): SharedUrlInput {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) {
+            return SharedUrlInput(url = null, sharedText = existingSharedText)
+        }
+
+        val extractedUrl = trimmed.extractFirstUrl()
+        if (extractedUrl == null) {
+            return SharedUrlInput(url = trimmed, sharedText = existingSharedText)
+        }
+
+        val extractedText = trimmed.removeUrls().normalizeWhitespace()
+        return SharedUrlInput(
+            url = extractedUrl,
+            sharedText = existingSharedText ?: extractedText,
+        )
+    }
+
+    private fun String.extractFirstUrl(): String? {
+        return UrlRegex.find(this)
+            ?.value
+            ?.trimEnd('.', ',', '，', '。', '）', ')')
+    }
+
+    private fun String.removeUrls(): String {
+        return replace(UrlRegex, " ")
+    }
+
+    private fun String.normalizeWhitespace(): String? {
+        return lineSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .joinToString(separator = "\n")
+            .ifBlank { null }
+    }
+
+    private fun SaveItemUiState.xiaohongshuShareTitle(): String? {
+        if (sourcePlatform != "小红书") return null
+
+        val firstLine = sharedText
+            ?.lineSequence()
+            ?.map(String::trim)
+            ?.firstOrNull { it.isNotBlank() }
+            ?: return null
+        if (firstLine.startsWith("复制文本并前往")) return null
+
+        val bodyStartIndex = XiaohongshuBodyStartMarkers
+            .map(firstLine::indexOf)
+            .filter { it > 0 }
+            .minOrNull()
+
+        return if (bodyStartIndex == null) {
+            firstLine
+        } else {
+            firstLine.substring(0, bodyStartIndex)
+        }.trim().ifBlank { null }
     }
 
     private fun deriveState(state: SaveItemUiState): SaveItemUiState {
@@ -280,5 +350,15 @@ class SaveItemViewModel(
 
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
+    }
+
+    private data class SharedUrlInput(
+        val url: String?,
+        val sharedText: String?,
+    )
+
+    private companion object {
+        val UrlRegex = Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE)
+        val XiaohongshuBodyStartMarkers = listOf(" 我", " 你", " 他", " 她", " 它", " 用", " 然后", " 以前", " 现在")
     }
 }
