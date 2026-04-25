@@ -352,8 +352,13 @@ fun DripRuntimeApp(
             onDetailPrimaryAction = {
                 val rawUrl = detailUiState?.item?.rawUrl ?: return@DripAppScaffold
                 openExternalOriginalLink(context, rawUrl)
-                if (detailUiState?.item?.isRead == false) {
-                    detailViewModelOrNull?.markRead()
+            },
+            onDetailToggleRead = {
+                val item = detailUiState?.item ?: return@DripAppScaffold
+                if (item.isRead) {
+                    detailViewModelOrNull.markUnread()
+                } else {
+                    detailViewModelOrNull.markRead()
                 }
             },
             onDetailOpenEditor = { detailEditorVisible = true },
@@ -367,14 +372,6 @@ fun DripRuntimeApp(
             onDetailEditorTagDraftChanged = { detailViewModelOrNull?.onTagDraftChanged(it) },
             onDetailEditorAddTag = { detailViewModelOrNull?.addTag() },
             onDetailEditorRemoveTag = { detailViewModelOrNull?.removeTag(it) },
-            onDetailEditorToggleRead = {
-                val item = detailUiState?.item ?: return@DripAppScaffold
-                if (item.isRead) {
-                    detailViewModelOrNull?.markUnread()
-                } else {
-                    detailViewModelOrNull?.markRead()
-                }
-            },
             onDetailEditorSave = {
                 detailViewModelOrNull?.saveEdits()
                 detailEditorVisible = false

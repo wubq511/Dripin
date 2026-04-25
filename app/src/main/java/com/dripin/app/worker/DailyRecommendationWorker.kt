@@ -74,25 +74,39 @@ suspend fun runDailyRecommendationWork(
         today = today,
     )
 
-    if (batch != null && batch.itemIds.isNotEmpty() && !recommendationStore.hasPostedNotificationForBatch(batch.id)) {
+    if (batch != null && !recommendationStore.hasPostedNotificationForBatch(batch.id)) {
+        val unreadItemCount = recommendationStore.getTodayItems(today).count { !it.isRead }
         val attemptedAt = clock.instant()
-        val notificationResult = notifier.showDailyRecommendation(batch.itemIds.size)
-        if (notificationResult == NotificationPostResult.Posted) {
-            recommendationStore.markBatchPosted(
-                batchId = batch.id,
-                deliveredAt = attemptedAt,
+        if (unreadItemCount > 0) {
+            val notificationResult = notifier.showDailyRecommendation(unreadItemCount)
+            if (notificationResult == NotificationPostResult.Posted) {
+                recommendationStore.markBatchPosted(
+                    batchId = batch.id,
+                    deliveredAt = attemptedAt,
+                )
+            }
+            recommendationStore.recordNotificationDelivery(
+                NotificationDeliveryLog(
+                    recommendedDate = today,
+                    attemptedAt = attemptedAt,
+                    itemCount = unreadItemCount,
+                    status = notificationResult.toDeliveryStatus(),
+                    issue = notificationResult.toDeliveryIssue(),
+                    batchId = batch.id,
+                ),
+            )
+        } else {
+            recommendationStore.recordNotificationDelivery(
+                NotificationDeliveryLog(
+                    recommendedDate = today,
+                    attemptedAt = attemptedAt,
+                    itemCount = 0,
+                    status = NotificationDeliveryStatus.SKIPPED,
+                    issue = "NO_UNREAD_RECOMMENDATIONS",
+                    batchId = batch.id,
+                ),
             )
         }
-        recommendationStore.recordNotificationDelivery(
-            NotificationDeliveryLog(
-                recommendedDate = today,
-                attemptedAt = attemptedAt,
-                itemCount = batch.itemIds.size,
-                status = notificationResult.toDeliveryStatus(),
-                issue = notificationResult.toDeliveryIssue(),
-                batchId = batch.id,
-            ),
-        )
     } else if (existingBatch == null && batch == null) {
         recommendationStore.recordNotificationDelivery(
             NotificationDeliveryLog(

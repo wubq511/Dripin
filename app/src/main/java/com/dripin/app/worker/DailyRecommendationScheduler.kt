@@ -20,6 +20,7 @@ class DailyRecommendationScheduler(
     override fun scheduleNextRun(
         time: LocalTime,
         zoneId: ZoneId,
+        catchUpIfDue: Boolean,
     ) {
         cancelExisting()
 
@@ -31,7 +32,7 @@ class DailyRecommendationScheduler(
             .withNano(0)
 
         if (!nextRun.isAfter(now)) {
-            nextRun = nextRun.plusDays(1)
+            nextRun = if (catchUpIfDue) now else nextRun.plusDays(1)
         }
 
         val delay = Duration.between(now, nextRun)
@@ -71,6 +72,7 @@ interface SchedulerController {
     fun scheduleNextRun(
         time: LocalTime,
         zoneId: ZoneId,
+        catchUpIfDue: Boolean = false,
     )
 
     fun cancel()

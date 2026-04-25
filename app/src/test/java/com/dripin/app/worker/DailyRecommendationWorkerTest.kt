@@ -183,6 +183,37 @@ class DailyRecommendationWorkerTest {
     }
 
     @Test
+    fun worker_skips_existing_batch_when_all_batch_items_are_read() = runBlocking {
+        val notifier = FakeRecommendationNotifier()
+        val scheduler = RecordingScheduler()
+        val store = FakeRecommendationStore(
+            existingBatch = TodayBatch(id = 13L, itemIds = listOf(7L, 8L)),
+            todayItems = listOf(
+                fakeWorkerItem(id = 7L, isRead = true),
+                fakeWorkerItem(id = 8L, isRead = true),
+            ),
+        )
+
+        runDailyRecommendationWork(
+            preferences = UserPreferences(dailyPushTime = LocalTime.of(21, 0)),
+            today = LocalDate.parse("2026-04-18"),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            recommendationStore = store,
+            scheduler = scheduler,
+            notifier = notifier,
+            clock = Clock.fixed(Instant.parse("2026-04-18T13:00:00Z"), ZoneOffset.UTC),
+        )
+
+        assertFalse(notifier.wasNotified)
+        assertTrue(store.markedPostedBatches.isEmpty())
+        val log = store.recordedLogs.single()
+        assertEquals(NotificationDeliveryStatus.SKIPPED, log.status)
+        assertEquals("NO_UNREAD_RECOMMENDATIONS", log.issue)
+        assertEquals(0, log.itemCount)
+        assertEquals(13L, log.batchId)
+    }
+
+    @Test
     fun worker_skips_duplicate_notification_for_batch_that_was_already_posted() = runBlocking {
         val notifier = FakeRecommendationNotifier()
         val scheduler = RecordingScheduler()
@@ -223,7 +254,11 @@ private class RecordingScheduler : SchedulerController {
     var scheduled = false
     var cancelled = false
 
-    override fun scheduleNextRun(time: LocalTime, zoneId: ZoneId) {
+    override fun scheduleNextRun(
+        time: LocalTime,
+        zoneId: ZoneId,
+        catchUpIfDue: Boolean,
+    ) {
         scheduled = true
     }
 
@@ -236,7 +271,12 @@ private class FakeRecommendationStore(
     private val generatedBatch: TodayBatch? = null,
     private val existingBatch: TodayBatch? = null,
     private val hasPostedNotification: Boolean = false,
+    todayItems: List<SavedItemEntity>? = null,
 ) : RecommendationStore {
+    private val currentTodayItems = todayItems
+        ?: (existingBatch ?: generatedBatch)?.itemIds?.map { itemId ->
+            fakeWorkerItem(id = itemId, isRead = false)
+        }.orEmpty()
     val recordedLogs = mutableListOf<NotificationDeliveryLog>()
     val markedPostedBatches = mutableListOf<Pair<Long, Instant>>()
 
@@ -247,7 +287,7 @@ private class FakeRecommendationStore(
 
     override suspend fun getTodayBatch(today: LocalDate): TodayBatch? = existingBatch
 
-    override suspend fun getTodayItems(today: LocalDate): List<SavedItemEntity> = emptyList()
+    override suspend fun getTodayItems(today: LocalDate): List<SavedItemEntity> = currentTodayItems
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = emptyFlow()
 
@@ -267,3 +307,29 @@ private class FakeRecommendationStore(
 
     override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> = emptyFlow()
 }
+
+private fun fakeWorkerItem(
+    id: Long,
+    isRead: Boolean,
+): SavedItemEntity = SavedItemEntity(
+    id = id,
+    contentType = com.dripin.app.core.model.ContentType.LINK,
+    title = "Item $id",
+    rawUrl = "https://example.com/$id",
+    canonicalUrl = "https://example.com/$id",
+    textContent = null,
+    imageUris = emptyList(),
+    sourceAppPackage = "com.example.share",
+    sourceAppLabel = "Example",
+    sourcePlatform = "Example",
+    sourceDomain = "example.com",
+    topicCategory = "文章",
+    note = null,
+    createdAt = Instant.parse("2026-04-14T08:00:00Z"),
+    updatedAt = Instant.parse("2026-04-14T08:00:00Z"),
+    isRead = isRead,
+    readAt = null,
+    pushCount = 0,
+    lastPushedAt = null,
+    lastRecommendedDate = null,
+)

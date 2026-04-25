@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.dripin.app.core.model.ContentType
 import com.example.dripin4.ui.app.DetailEditorState
 import com.example.dripin4.ui.app.DetailScreenState
@@ -64,6 +65,7 @@ class DetailUiTest {
                         ),
                     ),
                     onPrimaryAction = {},
+                    onToggleRead = {},
                     onOpenEditor = {},
                     onDismissEditor = {},
                     onEditorTitleChanged = {},
@@ -75,7 +77,6 @@ class DetailUiTest {
                     onEditorTagDraftChanged = {},
                     onEditorAddTag = {},
                     onEditorRemoveTag = {},
-                    onEditorToggleRead = {},
                     onEditorSave = {},
                 )
             }
@@ -128,6 +129,7 @@ class DetailUiTest {
                         ),
                     ),
                     onPrimaryAction = {},
+                    onToggleRead = {},
                     onOpenEditor = {},
                     onDismissEditor = {},
                     onEditorTitleChanged = {},
@@ -139,7 +141,6 @@ class DetailUiTest {
                     onEditorTagDraftChanged = {},
                     onEditorAddTag = {},
                     onEditorRemoveTag = {},
-                    onEditorToggleRead = {},
                     onEditorSave = {},
                 )
             }
@@ -151,4 +152,105 @@ class DetailUiTest {
         rule.onAllNodesWithText(DripStrings.DetailSectionMeta).assertCountEquals(0)
         rule.onAllNodesWithTag("detail_primary_action").assertCountEquals(0)
     }
+
+    @Test
+    fun detailReadAction_isSeparateFromOpeningOriginal() {
+        var primaryClicks = 0
+        var readToggleClicks = 0
+        rule.setContent {
+            DripTheme {
+                DetailScreen(
+                    state = unreadLinkDetailState(editorVisible = false),
+                    onPrimaryAction = { primaryClicks += 1 },
+                    onToggleRead = { readToggleClicks += 1 },
+                    onOpenEditor = {},
+                    onDismissEditor = {},
+                    onEditorTitleChanged = {},
+                    onEditorNoteChanged = {},
+                    onEditorRawUrlChanged = {},
+                    onEditorTextChanged = {},
+                    onEditorRequestImages = {},
+                    onEditorRemoveImage = {},
+                    onEditorTagDraftChanged = {},
+                    onEditorAddTag = {},
+                    onEditorRemoveTag = {},
+                    onEditorSave = {},
+                )
+            }
+        }
+
+        rule.onNodeWithTag("detail_read_toggle").performScrollTo().assertIsDisplayed().performClick()
+        rule.runOnIdle {
+            assertEquals(1, readToggleClicks)
+            assertEquals(0, primaryClicks)
+        }
+
+        rule.onNodeWithTag("detail_primary_action").performScrollTo().assertIsDisplayed().performClick()
+        rule.runOnIdle {
+            assertEquals(1, readToggleClicks)
+            assertEquals(1, primaryClicks)
+        }
+    }
+
+    @Test
+    fun detailEditor_doesNotContainReadAction() {
+        rule.setContent {
+            DripTheme {
+                DetailScreen(
+                    state = unreadLinkDetailState(editorVisible = true),
+                    onPrimaryAction = {},
+                    onToggleRead = {},
+                    onOpenEditor = {},
+                    onDismissEditor = {},
+                    onEditorTitleChanged = {},
+                    onEditorNoteChanged = {},
+                    onEditorRawUrlChanged = {},
+                    onEditorTextChanged = {},
+                    onEditorRequestImages = {},
+                    onEditorRemoveImage = {},
+                    onEditorTagDraftChanged = {},
+                    onEditorAddTag = {},
+                    onEditorRemoveTag = {},
+                    onEditorSave = {},
+                )
+            }
+        }
+
+        rule.onAllNodesWithText("标记已读").assertCountEquals(0)
+        rule.onAllNodesWithText("标记未读").assertCountEquals(0)
+        rule.onNodeWithText("加入标签").assertIsDisplayed()
+    }
 }
+
+private fun unreadLinkDetailState(editorVisible: Boolean): DetailScreenState = DetailScreenState(
+    item = InboxItemUi(
+        id = "detail-link",
+        title = "待读文章",
+        note = "",
+        source = "GitHub",
+        time = "今天",
+        tag = "开发",
+        kind = InboxKind.Article,
+        contentType = ContentType.LINK,
+        isRead = false,
+        pushCount = 0,
+    ),
+    contentType = ContentType.LINK,
+    noteBody = "",
+    rawUrl = "https://github.com/openai/openai",
+    textContent = "项目主页",
+    imageUris = emptyList(),
+    primaryActionEnabled = true,
+    editor = DetailEditorState(
+        visible = editorVisible,
+        titleDraft = "待读文章",
+        noteDraft = "",
+        rawUrlDraft = "https://github.com/openai/openai",
+        textContentDraft = "项目主页",
+        imageUris = emptyList(),
+        tags = emptyList(),
+        tagDraft = "",
+        canSave = true,
+        isRead = false,
+    ),
+)

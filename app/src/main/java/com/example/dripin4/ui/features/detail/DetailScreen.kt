@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
@@ -47,6 +48,7 @@ import com.example.dripin4.ui.designsystem.components.GlassSectionHeading
 fun DetailScreen(
     state: DetailScreenState,
     onPrimaryAction: () -> Unit,
+    onToggleRead: () -> Unit,
     onOpenEditor: () -> Unit,
     onDismissEditor: () -> Unit,
     onEditorTitleChanged: (String) -> Unit,
@@ -58,7 +60,6 @@ fun DetailScreen(
     onEditorTagDraftChanged: (String) -> Unit,
     onEditorAddTag: () -> Unit,
     onEditorRemoveTag: (String) -> Unit,
-    onEditorToggleRead: () -> Unit,
     onEditorSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -166,6 +167,13 @@ fun DetailScreen(
             }
         }
 
+        if (hasDetailContent) item("detail_read_status") {
+            DetailReadStatusPanel(
+                isRead = state.editor.isRead,
+                onToggleRead = onToggleRead,
+            )
+        }
+
         if (hasDetailContent) item("detail_actions") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -201,9 +209,49 @@ fun DetailScreen(
             onTagDraftChanged = onEditorTagDraftChanged,
             onAddTag = onEditorAddTag,
             onRemoveTag = onEditorRemoveTag,
-            onToggleRead = onEditorToggleRead,
             onSave = onEditorSave,
         )
+    }
+}
+
+@Composable
+private fun DetailReadStatusPanel(
+    isRead: Boolean,
+    onToggleRead: () -> Unit,
+) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = GlassCardTone.Neutral,
+        contentPadding = PaddingValues(horizontal = DripSpacing.CardPadding, vertical = DripSpacing.Medium),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(DripSpacing.Small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "阅读状态",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = DripColors.Ink,
+                )
+                Text(
+                    text = if (isRead) "已读" else "未读",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DripColors.Graphite,
+                )
+            }
+            GlassButton(
+                text = if (isRead) "标为未读" else "标为已读",
+                onClick = onToggleRead,
+                style = if (isRead) GlassButtonStyle.Secondary else GlassButtonStyle.Primary,
+                modifier = Modifier.weight(1f),
+                testTag = "detail_read_toggle",
+            )
+        }
     }
 }
 
@@ -220,7 +268,6 @@ private fun DetailEditorDialog(
     onTagDraftChanged: (String) -> Unit,
     onAddTag: () -> Unit,
     onRemoveTag: (String) -> Unit,
-    onToggleRead: () -> Unit,
     onSave: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -326,23 +373,12 @@ private fun DetailEditorDialog(
                 singleLine = true,
             )
             Spacer(modifier = Modifier.height(DripSpacing.Small))
-            Row(
+            GlassButton(
+                text = "加入标签",
+                onClick = onAddTag,
+                style = GlassButtonStyle.Secondary,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(DripSpacing.Small),
-            ) {
-                GlassButton(
-                    text = if (state.editor.isRead) "标记未读" else "标记已读",
-                    onClick = onToggleRead,
-                    style = GlassButtonStyle.Secondary,
-                    modifier = Modifier.weight(1f),
-                )
-                GlassButton(
-                    text = "加入标签",
-                    onClick = onAddTag,
-                    style = GlassButtonStyle.Secondary,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(DripSpacing.SectionGap))
             Row(

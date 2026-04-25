@@ -92,6 +92,36 @@ class RecommendationRepositoryTest {
     }
 
     @Test
+    fun returns_no_batch_when_no_unread_candidates_exist() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = true, pushCount = 0),
+                fakeTextItem(id = 2L, isRead = true, pushCount = 0),
+            ),
+        )
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao)
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+            clock = Clock.fixed(Instant.parse("2026-04-25T07:00:00Z"), ZoneOffset.UTC),
+        )
+
+        val batch = repository.generateTodayBatch(
+            preferences = UserPreferences(
+                dailyPushCount = 2,
+                repeatPushedUnreadItems = false,
+                recommendationSortMode = RecommendationSortMode.OLDEST_SAVED_FIRST,
+            ),
+            today = LocalDate.parse("2026-04-25"),
+        )
+
+        assertNull(batch)
+        assertNull(savedItemDao.requireItem(1L).lastRecommendedDate)
+        assertNull(savedItemDao.requireItem(2L).lastRecommendedDate)
+        assertTrue(recommendationDao.insertedBatches.isEmpty())
+    }
+
+    @Test
     fun records_notification_delivery_logs_by_latest_attempt_first() = runBlocking {
         val savedItemDao = FakeSavedItemDao(emptyList())
         val recommendationDao = FakeDailyRecommendationDao(savedItemDao)
@@ -167,6 +197,54 @@ class RecommendationRepositoryTest {
         assertEquals(deliveredAt, savedItemDao.requireItem(2L).lastPushedAt)
         assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(1L).lastRecommendedDate)
         assertEquals(LocalDate.parse("2026-04-14"), savedItemDao.requireItem(2L).lastRecommendedDate)
+    }
+
+    @Test
+    fun markBatchPosted_updates_only_unread_items_at_delivery_time() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = false, pushCount = 0),
+                fakeTextItem(id = 2L, isRead = true, pushCount = 0),
+            ),
+        )
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao).apply {
+            val batchId = insertBatch(
+                DailyRecommendationEntity(
+                    recommendedDate = LocalDate.parse("2026-04-14"),
+                    createdAt = Instant.parse("2026-04-14T09:00:00Z"),
+                    itemCount = 2,
+                ),
+            )
+            insertBatchItems(
+                listOf(
+                    DailyRecommendationItemEntity(
+                        batchId = batchId,
+                        itemId = 1L,
+                        displayOrder = 0,
+                    ),
+                    DailyRecommendationItemEntity(
+                        batchId = batchId,
+                        itemId = 2L,
+                        displayOrder = 1,
+                    ),
+                ),
+            )
+        }
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+        )
+        val deliveredAt = Instant.parse("2026-04-14T13:00:00Z")
+
+        repository.markBatchPosted(
+            batchId = 1L,
+            deliveredAt = deliveredAt,
+        )
+
+        assertEquals(1, savedItemDao.requireItem(1L).pushCount)
+        assertEquals(deliveredAt, savedItemDao.requireItem(1L).lastPushedAt)
+        assertEquals(0, savedItemDao.requireItem(2L).pushCount)
+        assertNull(savedItemDao.requireItem(2L).lastPushedAt)
     }
 
     @Test

@@ -153,6 +153,7 @@ class RecommendationRepository(
     override suspend fun markBatchPosted(batchId: Long, deliveredAt: Instant) {
         recommendationDao.getItemIdsForBatch(batchId).forEach { itemId ->
             val item = savedItemDao.getById(itemId) ?: return@forEach
+            if (item.isRead) return@forEach
             savedItemDao.update(
                 item.copy(
                     pushCount = item.pushCount + 1,
