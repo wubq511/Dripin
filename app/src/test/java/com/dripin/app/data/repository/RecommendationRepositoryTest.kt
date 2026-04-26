@@ -160,6 +160,32 @@ class RecommendationRepositoryTest {
     }
 
     @Test
+    fun observes_only_unread_pushed_items_by_latest_push_first() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = false, pushCount = 1).copy(
+                    lastPushedAt = Instant.parse("2026-04-26T04:00:00Z"),
+                ),
+                fakeTextItem(id = 2L, isRead = true, pushCount = 1).copy(
+                    lastPushedAt = Instant.parse("2026-04-27T04:00:00Z"),
+                ),
+                fakeImageItem(id = 3L, isRead = false, pushCount = 0),
+                fakeTextItem(id = 4L, isRead = false, pushCount = 2).copy(
+                    lastPushedAt = Instant.parse("2026-04-27T04:00:00Z"),
+                ),
+            ),
+        )
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = FakeDailyRecommendationDao(savedItemDao),
+        )
+
+        val items = repository.observeUnreadPushedItems().first()
+
+        assertEquals(listOf(4L, 1L), items.map(SavedItemEntity::id))
+    }
+
+    @Test
     fun markBatchPosted_updates_push_count_and_timestamp_only_after_delivery() = runBlocking {
         val savedItemDao = FakeSavedItemDao(
             listOf(
@@ -317,6 +343,8 @@ private class FakeSavedItemDao(
     override suspend fun getAllByNewestFirst(): List<SavedItemEntity> = items.values.sortedByDescending { it.createdAt }
 
     fun requireItem(itemId: Long): SavedItemEntity = checkNotNull(items[itemId])
+
+    fun items(): List<SavedItemEntity> = items.values.toList()
 }
 
 private class FakeDailyRecommendationDao(
@@ -357,6 +385,17 @@ private class FakeDailyRecommendationDao(
 
     override fun observeItemsForDate(date: LocalDate): Flow<List<SavedItemEntity>> {
         return MutableStateFlow(emptyList())
+    }
+
+    override fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>> {
+        return MutableStateFlow(
+            savedItemDao.items()
+                .filter { !it.isRead && it.pushCount > 0 && it.lastPushedAt != null }
+                .sortedWith(
+                    compareByDescending<SavedItemEntity> { it.lastPushedAt }
+                        .thenByDescending { it.updatedAt },
+                ),
+        )
     }
 
     override suspend fun insertNotificationDeliveryLog(log: NotificationDeliveryLogEntity): Long {

@@ -20,7 +20,7 @@ import org.junit.Test
 
 class TodayViewModelTest {
     @Test
-    fun exposes_today_cards_in_rank_order() = runBlocking {
+    fun exposes_unread_pushed_cards_in_rank_order() = runBlocking {
         val viewModel = TodayViewModel(
             repository = FlowBackedRecommendationStore(
                 initialItems = listOf(
@@ -35,6 +35,25 @@ class TodayViewModelTest {
         delay(10)
 
         assertEquals(listOf(2L, 1L), viewModel.uiState.value.cards.map { it.id })
+    }
+
+    @Test
+    fun filters_out_read_or_unpushed_cards() = runBlocking {
+        val viewModel = TodayViewModel(
+            repository = FlowBackedRecommendationStore(
+                initialItems = listOf(
+                    fakeTodayItem(id = 1L, title = "Unread pushed"),
+                    fakeTodayItem(id = 2L, title = "Already read", isRead = true),
+                    fakeTodayItem(id = 3L, title = "Never pushed", pushCount = 0, lastPushedAt = null),
+                ),
+            ),
+            today = LocalDate.parse("2026-04-14"),
+            workerDispatcher = Dispatchers.Unconfined,
+        )
+
+        delay(10)
+
+        assertEquals(listOf(1L), viewModel.uiState.value.cards.map { it.id })
     }
 
     @Test
@@ -61,27 +80,20 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun generates_missing_batch_when_today_is_due() = runBlocking {
+    fun does_not_generate_missing_batch_from_today_page() = runBlocking {
         val repository = FlowBackedRecommendationStore(initialItems = emptyList()).apply {
             generatedItems = listOf(fakeTodayItem(id = 8L, title = "Recovered"))
         }
         val viewModel = TodayViewModel(
             repository = repository,
-            preferencesProvider = {
-                UserPreferences(
-                    notificationsEnabled = true,
-                    dailyPushTime = java.time.LocalTime.of(21, 0),
-                )
-            },
             today = LocalDate.parse("2026-04-14"),
-            currentTimeProvider = { java.time.LocalTime.of(22, 0) },
             workerDispatcher = Dispatchers.Unconfined,
         )
 
         delay(10)
 
-        assertTrue(repository.generateCalled)
-        assertEquals(listOf(8L), viewModel.uiState.value.cards.map { it.id })
+        assertEquals(false, repository.generateCalled)
+        assertTrue(viewModel.uiState.value.cards.isEmpty())
     }
 }
 
@@ -112,6 +124,8 @@ private class FlowBackedRecommendationStore(
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
 
+    override fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>> = items.asStateFlow()
+
     override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
 
     override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean = false
@@ -139,6 +153,8 @@ private class MutableRecommendationStore : RecommendationStore {
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = items.asStateFlow()
 
+    override fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>> = items.asStateFlow()
+
     override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
 
     override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean = false
@@ -159,6 +175,9 @@ private class MutableRecommendationStore : RecommendationStore {
 private fun fakeTodayItem(
     id: Long,
     title: String,
+    isRead: Boolean = false,
+    pushCount: Int = 1,
+    lastPushedAt: Instant? = Instant.parse("2026-04-14T08:00:00Z"),
 ): SavedItemEntity = SavedItemEntity(
     id = id,
     contentType = ContentType.LINK,
@@ -175,9 +194,9 @@ private fun fakeTodayItem(
     note = null,
     createdAt = Instant.parse("2026-04-14T08:00:00Z"),
     updatedAt = Instant.parse("2026-04-14T08:00:00Z"),
-    isRead = false,
+    isRead = isRead,
     readAt = null,
-    pushCount = 1,
-    lastPushedAt = Instant.parse("2026-04-14T08:00:00Z"),
+    pushCount = pushCount,
+    lastPushedAt = lastPushedAt,
     lastRecommendedDate = LocalDate.parse("2026-04-14"),
 )

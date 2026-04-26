@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dripin4.ui.app.TodayItemUi
 import com.example.dripin4.ui.app.TodayScreenState
+import com.example.dripin4.ui.app.TodaySectionUi
 import com.example.dripin4.ui.content.DripStrings
 import com.example.dripin4.ui.designsystem.DripColors
 import com.example.dripin4.ui.designsystem.GlassPalette
@@ -117,7 +118,7 @@ fun TodayScreen(
     backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
 ) {
-    val visualItems = remember(state.items) { state.items.toTodayVisualItems() }
+    val visualSections = remember(state.sections) { state.sections.toTodayVisualSections() }
 
     Box(
         modifier = modifier
@@ -161,17 +162,61 @@ fun TodayScreen(
                 }
             }
 
-            items(
-                items = visualItems,
-                key = { item -> item.id },
-            ) { visualItem ->
-                TodayItemCard(
-                    item = visualItem,
-                    onClick = { onOpenDetail(visualItem.id) },
-                    backdrop = backdrop,
-                )
+            visualSections.forEach { section ->
+                item("section_${section.id}") {
+                    TodayDateDivider(
+                        label = section.label,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
+                    )
+                }
+                items(
+                    items = section.items,
+                    key = { item -> item.id },
+                ) { visualItem ->
+                    TodayItemCard(
+                        item = visualItem,
+                        onClick = { onOpenDetail(visualItem.id) },
+                        backdrop = backdrop,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TodayDateDivider(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("today_date_divider_$label"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(GlassPalette.TextTodaySelection.copy(alpha = 0.14f)),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = GlassPalette.TextTodaySelection.copy(alpha = 0.52f),
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.sp,
+            ),
+            maxLines = 1,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(0.5.dp)
+                .background(GlassPalette.TextTodaySelection.copy(alpha = 0.14f)),
+        )
     }
 }
 
@@ -440,6 +485,21 @@ private data class TodayVisualItem(
     val badgeText: String,
     val meta: String
 )
+
+@Immutable
+private data class TodayVisualSection(
+    val id: String,
+    val label: String,
+    val items: List<TodayVisualItem>,
+)
+
+private fun List<TodaySectionUi>.toTodayVisualSections(): List<TodayVisualSection> = map { section ->
+    TodayVisualSection(
+        id = section.id,
+        label = section.label,
+        items = section.items.toTodayVisualItems(),
+    )
+}
 
 private fun List<TodayItemUi>.toTodayVisualItems(): List<TodayVisualItem> = map { item ->
     val badgeText = when {

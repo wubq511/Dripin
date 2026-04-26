@@ -84,6 +84,7 @@ class DripRuntimeMappersTest {
             note = "Important",
             rawUrl = "https://github.com/openai/openai",
             imageUri = null,
+            pushedAt = Instant.parse("2026-04-21T12:00:00Z"),
             isRead = false,
         )
 
@@ -95,6 +96,49 @@ class DripRuntimeMappersTest {
         assertEquals("99", mapped.id)
         assertEquals("A saved article", mapped.title)
         assertEquals("2 天前 · 设计", mapped.meta)
+    }
+
+    @Test
+    fun todayCards_groupIntoSectionsByLocalPushDate() {
+        val savedItems = listOf(
+            savedItem(
+                id = 1L,
+                contentType = ContentType.LINK,
+                title = "First",
+                note = null,
+                topicCategory = "开发",
+                createdAt = Instant.parse("2026-04-25T02:00:00Z"),
+            ),
+            savedItem(
+                id = 2L,
+                contentType = ContentType.LINK,
+                title = "Second",
+                note = null,
+                topicCategory = "阅读",
+                createdAt = Instant.parse("2026-04-24T02:00:00Z"),
+            ),
+            savedItem(
+                id = 3L,
+                contentType = ContentType.LINK,
+                title = "Third",
+                note = null,
+                topicCategory = "设计",
+                createdAt = Instant.parse("2026-04-23T02:00:00Z"),
+            ),
+        )
+        val sections = listOf(
+            todayCard(id = 1L, title = "First", pushedAt = Instant.parse("2026-04-27T04:00:00Z")),
+            todayCard(id = 2L, title = "Second", pushedAt = Instant.parse("2026-04-26T04:00:00Z")),
+            todayCard(id = 3L, title = "Third", pushedAt = Instant.parse("2026-04-25T04:00:00Z")),
+        ).toTodaySectionsUi(
+            savedItems = savedItems,
+            nowDate = LocalDate.parse("2026-04-27"),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+        )
+
+        assertEquals(listOf("2026-04-27", "2026-04-26", "2026-04-25"), sections.map { it.id })
+        assertEquals(listOf("今天", "昨天", "4月25日"), sections.map { it.label })
+        assertEquals(listOf(listOf("1"), listOf("2"), listOf("3")), sections.map { section -> section.items.map { it.id } })
     }
 
     @Test
@@ -195,6 +239,24 @@ class DripRuntimeMappersTest {
         )
     }
 }
+
+private fun todayCard(
+    id: Long,
+    title: String,
+    pushedAt: Instant,
+): TodayCardModel = TodayCardModel(
+    id = id,
+    rank = id.toInt(),
+    title = title,
+    contentType = ContentType.LINK,
+    sourceLabel = "GitHub",
+    textPreview = null,
+    note = null,
+    rawUrl = "https://example.com/$id",
+    imageUri = null,
+    pushedAt = pushedAt,
+    isRead = false,
+)
 
 private fun savedItem(
     id: Long,

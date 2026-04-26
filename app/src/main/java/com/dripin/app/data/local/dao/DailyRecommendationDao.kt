@@ -68,6 +68,17 @@ interface DailyRecommendationDao {
 
     @Query(
         """
+        SELECT * FROM saved_items
+        WHERE pushCount > 0
+            AND isRead = 0
+            AND lastPushedAt IS NOT NULL
+        ORDER BY lastPushedAt DESC, updatedAt DESC
+        """,
+    )
+    fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>>
+
+    @Query(
+        """
         SELECT * FROM notification_delivery_logs
         ORDER BY attemptedAt DESC
         LIMIT :limit

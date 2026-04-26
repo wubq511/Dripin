@@ -46,7 +46,6 @@ import com.dripin.app.worker.PostNotificationsPermission
 import com.example.dripin4.ui.designsystem.DripTheme
 import java.time.Instant
 import java.time.ZoneId
-import kotlinx.coroutines.flow.first
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,10 +116,9 @@ fun DripRuntimeApp(
         )
     }
 
-    val todayViewModelFactory = remember(recommendationRepository, settingsRepository) {
+    val todayViewModelFactory = remember(recommendationRepository) {
         TodayViewModelFactory(
             repository = recommendationRepository,
-            preferencesProvider = { settingsRepository.preferences.first() },
         )
     }
     val todayViewModel: TodayViewModel = viewModel(factory = todayViewModelFactory)
@@ -192,22 +190,13 @@ fun DripRuntimeApp(
 
     val todayState = remember(todayUiState, settingsUiState) {
         val nowDate = todayUiState.date
-        val items = todayUiState.cards.map { card ->
-            val savedItem = savedItems.firstOrNull { it.id == card.id }
-            val savedDaysAgo = savedItem?.createdAt
-                ?.atZone(zoneId)
-                ?.toLocalDate()
-                ?.let { java.time.temporal.ChronoUnit.DAYS.between(it, nowDate).coerceAtLeast(0) }
-                ?: 0L
-            val tag = savedItem?.topicCategory ?: card.sourceLabel
-            card.toTodayItemUi(
-                tag = tag,
-                savedDaysAgo = savedDaysAgo,
-            )
-        }
         TodayScreenState(
             heroTimeText = settingsUiState.dailyPushTime.toString().substring(0, 5),
-            items = items,
+            sections = todayUiState.cards.toTodaySectionsUi(
+                savedItems = savedItems,
+                nowDate = nowDate,
+                zoneId = zoneId,
+            ),
         )
     }
 

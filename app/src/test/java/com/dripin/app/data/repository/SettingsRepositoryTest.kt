@@ -19,7 +19,7 @@ import org.junit.Test
 
 class SettingsRepositoryTest {
     @Test
-    fun syncSchedule_catches_up_today_when_daily_time_has_already_passed() = runBlocking {
+    fun syncSchedule_rolls_over_to_tomorrow_when_daily_time_has_already_passed() = runBlocking {
         val requests = mutableListOf<OneTimeWorkRequest>()
         val preferencesRepository = UserPreferencesRepository(FakePreferencesDataStore())
         val scheduler = DailyRecommendationScheduler(
@@ -37,7 +37,7 @@ class SettingsRepositoryTest {
         repository.syncSchedule()
 
         assertEquals(1, requests.size)
-        assertEquals(0L, requests.single().workSpec.initialDelay)
+        assertEquals(21 * 60 * 60 * 1000L, requests.single().workSpec.initialDelay)
     }
 }
 

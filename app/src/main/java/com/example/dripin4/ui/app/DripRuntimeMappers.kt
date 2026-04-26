@@ -10,6 +10,7 @@ import com.dripin.app.feature.recommendation.TodayCardModel
 import com.dripin.app.feature.settings.SettingsUiState
 import com.dripin.app.worker.NotificationCapabilitySnapshot
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -72,6 +73,43 @@ internal fun TodayCardModel.toTodayItemUi(
         title = title,
         meta = "$relativeDate · $tag",
     )
+}
+
+internal fun List<TodayCardModel>.toTodaySectionsUi(
+    savedItems: List<SavedItemEntity>,
+    nowDate: LocalDate,
+    zoneId: ZoneId,
+): List<TodaySectionUi> {
+    val sectionFormatter = DateTimeFormatter.ofPattern("M月d日")
+    return groupBy { card -> card.pushedAt.atZone(zoneId).toLocalDate() }
+        .map { (date, cards) ->
+            TodaySectionUi(
+                id = date.toString(),
+                label = date.toTodaySectionLabel(nowDate = nowDate, formatter = sectionFormatter),
+                items = cards.map { card ->
+                    val savedItem = savedItems.firstOrNull { it.id == card.id }
+                    val savedDaysAgo = savedItem?.createdAt
+                        ?.atZone(zoneId)
+                        ?.toLocalDate()
+                        ?.let { ChronoUnit.DAYS.between(it, nowDate).coerceAtLeast(0) }
+                        ?: 0L
+                    val tag = savedItem?.topicCategory ?: card.sourceLabel
+                    card.toTodayItemUi(
+                        tag = tag,
+                        savedDaysAgo = savedDaysAgo,
+                    )
+                },
+            )
+        }
+}
+
+private fun LocalDate.toTodaySectionLabel(
+    nowDate: LocalDate,
+    formatter: DateTimeFormatter,
+): String = when (this) {
+    nowDate -> "今天"
+    nowDate.minusDays(1) -> "昨天"
+    else -> format(formatter)
 }
 
 internal fun SettingsUiState.toPrototypeSettingsUi(): PrototypeSettingsUi {

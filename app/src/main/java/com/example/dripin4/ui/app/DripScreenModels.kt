@@ -18,7 +18,7 @@ data class InboxScreenState(
 
 data class TodayScreenState(
     val heroTimeText: String,
-    val items: List<TodayItemUi>,
+    val sections: List<TodaySectionUi>,
 )
 
 data class CaptureScreenState(
@@ -102,7 +102,7 @@ internal fun DripAppState.toInboxScreenState(): InboxScreenState = InboxScreenSt
 
 internal fun DripAppState.toTodayScreenState(): TodayScreenState = TodayScreenState(
     heroTimeText = "20:30",
-    items = todayItems,
+    sections = todaySections,
 )
 
 internal fun DripAppState.toCaptureScreenState(): CaptureScreenState = CaptureScreenState(

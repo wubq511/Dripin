@@ -4,11 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.dripin.app.core.model.ContentType
 import com.dripin.app.data.local.entity.SavedItemEntity
-import com.dripin.app.data.preferences.UserPreferences
 import com.dripin.app.data.repository.RecommendationStore
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +30,7 @@ data class TodayCardModel(
     val note: String?,
     val rawUrl: String?,
     val imageUri: String?,
+    val pushedAt: Instant,
     val isRead: Boolean = false,
 )
 
@@ -41,9 +41,7 @@ data class TodayUiState(
 
 class TodayViewModel(
     private val repository: RecommendationStore,
-    private val preferencesProvider: suspend () -> UserPreferences = { UserPreferences() },
     private val today: LocalDate = LocalDate.now(Clock.systemDefaultZone().withZone(ZoneId.systemDefault())),
-    private val currentTimeProvider: () -> LocalTime = { LocalTime.now() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val scope = CoroutineScope(SupervisorJob() + workerDispatcher)
@@ -52,16 +50,14 @@ class TodayViewModel(
 
     init {
         scope.launch {
-            repository.reconcileTodayBatchPushState(today)
-            maybeGenerateBatchIfDue()
-            repository.observeTodayItems(today).collect { items ->
+            repository.observeUnreadPushedItems().collect { items ->
+                val visibleItems = items.filter { item ->
+                    item.pushCount > 0 && !item.isRead && item.lastPushedAt != null
+                }
                 _uiState.value = TodayUiState(
                     date = today,
-                    cards = items.mapIndexed { index, item -> item.toCardModel(rank = index + 1) },
+                    cards = visibleItems.mapIndexed { index, item -> item.toCardModel(rank = index + 1) },
                 )
-                if (items.isEmpty()) {
-                    maybeGenerateBatchIfDue()
-                }
             }
         }
     }
@@ -78,20 +74,7 @@ class TodayViewModel(
     }
 
     fun refresh() {
-        scope.launch {
-            maybeGenerateBatchIfDue()
-        }
-    }
-
-    private suspend fun maybeGenerateBatchIfDue() {
-        if (repository.getTodayItems(today).isNotEmpty()) return
-        val preferences = preferencesProvider()
-        if (!preferences.notificationsEnabled) return
-        if (currentTimeProvider().isBefore(preferences.dailyPushTime)) return
-        repository.generateTodayBatch(
-            preferences = preferences,
-            today = today,
-        )
+        // The feed is driven by the repository flow; generation belongs to the worker.
     }
 
     private fun SavedItemEntity.toCardModel(rank: Int): TodayCardModel = TodayCardModel(
@@ -104,15 +87,14 @@ class TodayViewModel(
         note = note,
         rawUrl = rawUrl,
         imageUri = primaryImageUri,
+        pushedAt = checkNotNull(lastPushedAt) { "Today cards require a successful push timestamp." },
         isRead = isRead,
     )
 }
 
 class TodayViewModelFactory(
     private val repository: RecommendationStore,
-    private val preferencesProvider: suspend () -> UserPreferences = { UserPreferences() },
     private val today: LocalDate = LocalDate.now(),
-    private val currentTimeProvider: () -> LocalTime = { LocalTime.now() },
     private val workerDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
@@ -122,9 +104,7 @@ class TodayViewModelFactory(
         }
         return TodayViewModel(
             repository = repository,
-            preferencesProvider = preferencesProvider,
             today = today,
-            currentTimeProvider = currentTimeProvider,
             workerDispatcher = workerDispatcher,
         ) as T
     }

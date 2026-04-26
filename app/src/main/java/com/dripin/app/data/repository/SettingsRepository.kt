@@ -44,7 +44,6 @@ class SettingsRepository(
             scheduler.scheduleNextRun(
                 time = current.dailyPushTime,
                 zoneId = zoneId,
-                catchUpIfDue = true,
             )
         } else {
             scheduler.cancel()

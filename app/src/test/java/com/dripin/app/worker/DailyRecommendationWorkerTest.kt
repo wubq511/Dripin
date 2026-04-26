@@ -291,6 +291,8 @@ private class FakeRecommendationStore(
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> = emptyFlow()
 
+    override fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>> = emptyFlow()
+
     override suspend fun reconcileTodayBatchPushState(today: LocalDate) = Unit
 
     override suspend fun markItemRead(itemId: Long) = Unit

@@ -42,6 +42,8 @@ interface RecommendationStore {
 
     fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>>
 
+    fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>>
+
     suspend fun reconcileTodayBatchPushState(today: LocalDate)
 
     suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean
@@ -124,6 +126,10 @@ class RecommendationRepository(
 
     override fun observeTodayItems(today: LocalDate): Flow<List<SavedItemEntity>> {
         return recommendationDao.observeItemsForDate(today)
+    }
+
+    override fun observeUnreadPushedItems(): Flow<List<SavedItemEntity>> {
+        return recommendationDao.observeUnreadPushedItems()
     }
 
     override suspend fun reconcileTodayBatchPushState(today: LocalDate) {
