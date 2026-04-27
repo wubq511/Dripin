@@ -3,7 +3,6 @@ package com.dripin.app.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
-import androidx.work.OneTimeWorkRequest
 import com.dripin.app.data.preferences.UserPreferencesRepository
 import com.dripin.app.worker.DailyRecommendationScheduler
 import java.time.Clock
@@ -20,11 +19,11 @@ import org.junit.Test
 class SettingsRepositoryTest {
     @Test
     fun syncSchedule_rolls_over_to_tomorrow_when_daily_time_has_already_passed() = runBlocking {
-        val requests = mutableListOf<OneTimeWorkRequest>()
+        val triggerTimes = mutableListOf<Long>()
         val preferencesRepository = UserPreferencesRepository(FakePreferencesDataStore())
         val scheduler = DailyRecommendationScheduler(
             cancelExisting = { },
-            enqueue = { requests += it },
+            scheduleAt = { triggerAtMillis -> triggerTimes += triggerAtMillis },
             clock = Clock.fixed(Instant.parse("2026-04-14T07:00:00Z"), ZoneOffset.UTC),
         )
         val repository = SettingsRepository(
@@ -36,8 +35,7 @@ class SettingsRepositoryTest {
 
         repository.syncSchedule()
 
-        assertEquals(1, requests.size)
-        assertEquals(21 * 60 * 60 * 1000L, requests.single().workSpec.initialDelay)
+        assertEquals(listOf(Instant.parse("2026-04-15T04:00:00Z").toEpochMilli()), triggerTimes)
     }
 }
 

@@ -18,7 +18,7 @@ data class InboxScreenState(
 
 data class TodayScreenState(
     val heroTimeText: String,
-    val sections: List<TodaySectionUi>,
+    val items: List<TodayItemUi>,
 )
 
 data class CaptureScreenState(
@@ -87,6 +87,7 @@ data class NotificationHistoryUi(
     val countLabel: String,
     val detail: String,
     val successful: Boolean,
+    val itemTitles: List<String>,
 )
 
 internal fun DripAppState.toInboxScreenState(): InboxScreenState = InboxScreenState(
@@ -102,7 +103,7 @@ internal fun DripAppState.toInboxScreenState(): InboxScreenState = InboxScreenSt
 
 internal fun DripAppState.toTodayScreenState(): TodayScreenState = TodayScreenState(
     heroTimeText = "20:30",
-    sections = todaySections,
+    items = todayItems,
 )
 
 internal fun DripAppState.toCaptureScreenState(): CaptureScreenState = CaptureScreenState(
@@ -209,6 +210,7 @@ internal fun DripAppState.toNotificationHistory(): List<NotificationHistoryUi> =
         countLabel = "3 条内容",
         detail = "系统已接受通知",
         successful = true,
+        itemTitles = listOf("为未来注意力而设的安静系统", "更慢的信息流"),
     ),
     NotificationHistoryUi(
         id = "sample-history-2",
@@ -217,6 +219,7 @@ internal fun DripAppState.toNotificationHistory(): List<NotificationHistoryUi> =
         countLabel = "3 条内容",
         detail = "应用通知已关闭",
         successful = false,
+        itemTitles = emptyList(),
     ),
 )
 

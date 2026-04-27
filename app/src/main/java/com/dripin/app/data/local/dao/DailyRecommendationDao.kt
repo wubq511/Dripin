@@ -11,6 +11,12 @@ import com.dripin.app.data.local.entity.SavedItemEntity
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
+data class NotificationDeliveryLogItemTitle(
+    val logId: Long,
+    val title: String,
+    val displayOrder: Int,
+)
+
 @Dao
 interface DailyRecommendationDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -85,6 +91,23 @@ interface DailyRecommendationDao {
         """,
     )
     fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>>
+
+    @Query(
+        """
+        SELECT notification_delivery_logs.id AS logId,
+            COALESCE(NULLIF(saved_items.title, ''), '(无标题)') AS title,
+            daily_recommendation_items.displayOrder AS displayOrder
+        FROM notification_delivery_logs
+        INNER JOIN daily_recommendation_items
+            ON daily_recommendation_items.batchId = notification_delivery_logs.batchId
+        INNER JOIN saved_items
+            ON saved_items.id = daily_recommendation_items.itemId
+        WHERE notification_delivery_logs.id IN (:logIds)
+        ORDER BY notification_delivery_logs.attemptedAt DESC,
+            daily_recommendation_items.displayOrder ASC
+        """,
+    )
+    fun observeNotificationDeliveryLogItemTitles(logIds: List<Long>): Flow<List<NotificationDeliveryLogItemTitle>>
 
     @Query(
         """

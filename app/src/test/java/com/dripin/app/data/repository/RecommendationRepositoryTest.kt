@@ -4,6 +4,7 @@ import com.dripin.app.core.model.ContentType
 import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.core.model.RecommendationSortMode
 import com.dripin.app.data.local.dao.DailyRecommendationDao
+import com.dripin.app.data.local.dao.NotificationDeliveryLogItemTitle
 import com.dripin.app.data.local.dao.SavedItemDao
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -157,6 +159,46 @@ class RecommendationRepositoryTest {
             listOf(NotificationDeliveryStatus.BLOCKED, NotificationDeliveryStatus.POSTED),
             logs.map(NotificationDeliveryLog::status),
         )
+    }
+
+    @Test
+    fun notification_delivery_logs_include_batch_titles_in_display_order() = runBlocking {
+        val savedItemDao = FakeSavedItemDao(
+            listOf(
+                fakeLinkItem(id = 1L, isRead = false, pushCount = 0),
+                fakeTextItem(id = 2L, isRead = false, pushCount = 0),
+            ),
+        )
+        val recommendationDao = FakeDailyRecommendationDao(savedItemDao)
+        val repository = RecommendationRepository(
+            savedItemDao = savedItemDao,
+            recommendationDao = recommendationDao,
+            clock = Clock.fixed(Instant.parse("2026-04-14T09:00:00Z"), ZoneOffset.UTC),
+        )
+        val batch = checkNotNull(
+            repository.generateTodayBatch(
+                preferences = UserPreferences(
+                    dailyPushCount = 2,
+                    recommendationSortMode = RecommendationSortMode.OLDEST_SAVED_FIRST,
+                ),
+                today = LocalDate.parse("2026-04-14"),
+            ),
+        )
+
+        repository.recordNotificationDelivery(
+            NotificationDeliveryLog(
+                recommendedDate = LocalDate.parse("2026-04-14"),
+                attemptedAt = Instant.parse("2026-04-14T13:00:00Z"),
+                itemCount = 2,
+                status = NotificationDeliveryStatus.POSTED,
+                issue = null,
+                batchId = batch.id,
+            ),
+        )
+
+        val log = repository.observeNotificationDeliveryLogs(limit = 10).first().single()
+
+        assertEquals(listOf("OpenAI Repo", "Article Summary"), log.itemTitles)
     }
 
     @Test
@@ -407,6 +449,30 @@ private class FakeDailyRecommendationDao(
 
     override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLogEntity>> {
         return notificationLogs
+    }
+
+    override fun observeNotificationDeliveryLogItemTitles(logIds: List<Long>): Flow<List<NotificationDeliveryLogItemTitle>> {
+        return notificationLogs.map { logs ->
+            logs
+                .filter { it.id in logIds }
+                .flatMap { log ->
+                    val batchId = log.batchId ?: return@flatMap emptyList()
+                    batchItems
+                        .filter { it.batchId == batchId }
+                        .sortedBy(DailyRecommendationItemEntity::displayOrder)
+                        .mapNotNull { batchItem ->
+                            val title = savedItemDao.requireItem(batchItem.itemId)
+                                .title
+                                ?.takeIf(String::isNotBlank)
+                                ?: return@mapNotNull null
+                            NotificationDeliveryLogItemTitle(
+                                logId = log.id,
+                                title = title,
+                                displayOrder = batchItem.displayOrder,
+                            )
+                        }
+                }
+        }
     }
 
     override suspend fun hasPostedNotificationForBatch(batchId: Long): Boolean {

@@ -192,7 +192,7 @@ fun DripRuntimeApp(
         val nowDate = todayUiState.date
         TodayScreenState(
             heroTimeText = settingsUiState.dailyPushTime.toString().substring(0, 5),
-            sections = todayUiState.cards.toTodaySectionsUi(
+            items = todayUiState.cards.toTodayItemsUi(
                 savedItems = savedItems,
                 nowDate = nowDate,
                 zoneId = zoneId,

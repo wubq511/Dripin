@@ -99,7 +99,7 @@ class DripRuntimeMappersTest {
     }
 
     @Test
-    fun todayCards_groupIntoSectionsByLocalPushDate() {
+    fun todayCards_mapDirectlyWithoutDateSections() {
         val savedItems = listOf(
             savedItem(
                 id = 1L,
@@ -117,28 +117,19 @@ class DripRuntimeMappersTest {
                 topicCategory = "阅读",
                 createdAt = Instant.parse("2026-04-24T02:00:00Z"),
             ),
-            savedItem(
-                id = 3L,
-                contentType = ContentType.LINK,
-                title = "Third",
-                note = null,
-                topicCategory = "设计",
-                createdAt = Instant.parse("2026-04-23T02:00:00Z"),
-            ),
         )
-        val sections = listOf(
+        val items = listOf(
             todayCard(id = 1L, title = "First", pushedAt = Instant.parse("2026-04-27T04:00:00Z")),
             todayCard(id = 2L, title = "Second", pushedAt = Instant.parse("2026-04-26T04:00:00Z")),
-            todayCard(id = 3L, title = "Third", pushedAt = Instant.parse("2026-04-25T04:00:00Z")),
-        ).toTodaySectionsUi(
+        ).toTodayItemsUi(
             savedItems = savedItems,
             nowDate = LocalDate.parse("2026-04-27"),
             zoneId = ZoneId.of("Asia/Shanghai"),
         )
 
-        assertEquals(listOf("2026-04-27", "2026-04-26", "2026-04-25"), sections.map { it.id })
-        assertEquals(listOf("今天", "昨天", "4月25日"), sections.map { it.label })
-        assertEquals(listOf(listOf("1"), listOf("2"), listOf("3")), sections.map { section -> section.items.map { it.id } })
+        assertEquals(listOf("1", "2"), items.map { it.id })
+        assertEquals(listOf("First", "Second"), items.map { it.title })
+        assertEquals(listOf("2 天前 · 开发", "3 天前 · 阅读"), items.map { it.meta })
     }
 
     @Test
@@ -209,6 +200,7 @@ class DripRuntimeMappersTest {
             status = NotificationDeliveryStatus.BLOCKED,
             issue = "RuntimePermissionDenied",
             batchId = 7L,
+            itemTitles = listOf("First title", "Second title"),
         ).toNotificationHistoryUi(ZoneId.of("Asia/Shanghai"))
 
         assertEquals("12", mapped.id)
@@ -216,7 +208,43 @@ class DripRuntimeMappersTest {
         assertEquals("04-15 21:00", mapped.attemptedAtLabel)
         assertEquals("3 条内容", mapped.countLabel)
         assertEquals("权限未授权", mapped.detail)
+        assertEquals(listOf("First title", "Second title"), mapped.itemTitles)
         assertEquals(false, mapped.successful)
+    }
+
+    @Test
+    fun notificationDeliveryLog_usesRelativeDateForTodayAndYesterday() {
+        val log = NotificationDeliveryLog(
+            id = 13L,
+            recommendedDate = LocalDate.parse("2026-04-27"),
+            attemptedAt = Instant.parse("2026-04-27T04:08:00Z"),
+            itemCount = 2,
+            status = NotificationDeliveryStatus.POSTED,
+            issue = null,
+            batchId = 8L,
+        )
+
+        assertEquals(
+            "今天 12:08",
+            log.toNotificationHistoryUi(
+                zoneId = ZoneId.of("Asia/Shanghai"),
+                nowDate = LocalDate.parse("2026-04-27"),
+            ).attemptedAtLabel,
+        )
+        assertEquals(
+            "昨天 12:08",
+            log.toNotificationHistoryUi(
+                zoneId = ZoneId.of("Asia/Shanghai"),
+                nowDate = LocalDate.parse("2026-04-28"),
+            ).attemptedAtLabel,
+        )
+        assertEquals(
+            "04-27 12:08",
+            log.toNotificationHistoryUi(
+                zoneId = ZoneId.of("Asia/Shanghai"),
+                nowDate = LocalDate.parse("2026-04-29"),
+            ).attemptedAtLabel,
+        )
     }
 
     @Test

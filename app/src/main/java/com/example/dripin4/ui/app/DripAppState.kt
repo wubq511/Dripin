@@ -40,12 +40,6 @@ data class TodayItemUi(
     val meta: String
 )
 
-data class TodaySectionUi(
-    val id: String,
-    val label: String,
-    val items: List<TodayItemUi>,
-)
-
 enum class SettingsToggleKey {
     DailyNotification,
     EveningWindow,
@@ -161,28 +155,22 @@ class DripAppState(initialDestination: DripDestination = DripDestination.Today) 
         )
     )
 
-    val todaySections = listOf(
-        TodaySectionUi(
-            id = "sample-today",
-            label = "今天",
-            items = listOf(
-                TodayItemUi(
-                    id = "today-1",
-                    title = "今晚 3 条待看内容",
-                    meta = "低压力回看 · 20:30"
-                ),
-                TodayItemUi(
-                    id = "today-2",
-                    title = "一篇值得重看的文章",
-                    meta = "2 天前 · 设计"
-                ),
-                TodayItemUi(
-                    id = "today-3",
-                    title = "一组简短的视觉参考",
-                    meta = "昨天 · 灵感"
-                )
-            ),
+    val todayItems = listOf(
+        TodayItemUi(
+            id = "today-1",
+            title = "今晚 3 条待看内容",
+            meta = "低压力回看 · 20:30"
         ),
+        TodayItemUi(
+            id = "today-2",
+            title = "一篇值得重看的文章",
+            meta = "2 天前 · 设计"
+        ),
+        TodayItemUi(
+            id = "today-3",
+            title = "一组简短的视觉参考",
+            meta = "昨天 · 灵感"
+        )
     )
 
     private var selectedDetailId by mutableStateOf<String?>(null)

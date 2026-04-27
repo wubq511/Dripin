@@ -75,41 +75,25 @@ internal fun TodayCardModel.toTodayItemUi(
     )
 }
 
-internal fun List<TodayCardModel>.toTodaySectionsUi(
+internal fun List<TodayCardModel>.toTodayItemsUi(
     savedItems: List<SavedItemEntity>,
     nowDate: LocalDate,
     zoneId: ZoneId,
-): List<TodaySectionUi> {
-    val sectionFormatter = DateTimeFormatter.ofPattern("M月d日")
-    return groupBy { card -> card.pushedAt.atZone(zoneId).toLocalDate() }
-        .map { (date, cards) ->
-            TodaySectionUi(
-                id = date.toString(),
-                label = date.toTodaySectionLabel(nowDate = nowDate, formatter = sectionFormatter),
-                items = cards.map { card ->
-                    val savedItem = savedItems.firstOrNull { it.id == card.id }
-                    val savedDaysAgo = savedItem?.createdAt
-                        ?.atZone(zoneId)
-                        ?.toLocalDate()
-                        ?.let { ChronoUnit.DAYS.between(it, nowDate).coerceAtLeast(0) }
-                        ?: 0L
-                    val tag = savedItem?.topicCategory ?: card.sourceLabel
-                    card.toTodayItemUi(
-                        tag = tag,
-                        savedDaysAgo = savedDaysAgo,
-                    )
-                },
-            )
-        }
-}
-
-private fun LocalDate.toTodaySectionLabel(
-    nowDate: LocalDate,
-    formatter: DateTimeFormatter,
-): String = when (this) {
-    nowDate -> "今天"
-    nowDate.minusDays(1) -> "昨天"
-    else -> format(formatter)
+): List<TodayItemUi> {
+    val savedItemsById = savedItems.associateBy { it.id }
+    return map { card ->
+        val savedItem = savedItemsById[card.id]
+        val savedDaysAgo = savedItem?.createdAt
+            ?.atZone(zoneId)
+            ?.toLocalDate()
+            ?.let { ChronoUnit.DAYS.between(it, nowDate).coerceAtLeast(0) }
+            ?: 0L
+        val tag = savedItem?.topicCategory ?: card.sourceLabel
+        card.toTodayItemUi(
+            tag = tag,
+            savedDaysAgo = savedDaysAgo,
+        )
+    }
 }
 
 internal fun SettingsUiState.toPrototypeSettingsUi(): PrototypeSettingsUi {
@@ -156,9 +140,16 @@ internal fun SettingsUiState.toPrototypeSettingsUi(): PrototypeSettingsUi {
 
 internal fun NotificationDeliveryLog.toNotificationHistoryUi(
     zoneId: ZoneId,
+    nowDate: LocalDate = LocalDate.now(zoneId),
 ): NotificationHistoryUi {
-    val attemptedAtLabel = attemptedAt.atZone(zoneId)
-        .format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+    val attemptedAtTime = attemptedAt.atZone(zoneId)
+    val attemptedAtDate = attemptedAtTime.toLocalDate()
+    val dateLabel = when (attemptedAtDate) {
+        nowDate -> "今天"
+        nowDate.minusDays(1) -> "昨天"
+        else -> attemptedAtDate.format(DateTimeFormatter.ofPattern("MM-dd"))
+    }
+    val attemptedAtLabel = "$dateLabel ${attemptedAtTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
 
     return NotificationHistoryUi(
         id = id.toString(),
@@ -172,6 +163,7 @@ internal fun NotificationDeliveryLog.toNotificationHistoryUi(
         countLabel = "${itemCount} 条内容",
         detail = issue.toNotificationHistoryDetail(),
         successful = status == NotificationDeliveryStatus.POSTED,
+        itemTitles = itemTitles,
     )
 }
 

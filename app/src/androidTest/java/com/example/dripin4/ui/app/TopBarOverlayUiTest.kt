@@ -32,6 +32,17 @@ class TopBarOverlayUiTest {
     }
 
     @Test
+    fun notificationHistoryRow_expandsToShowDeliveredTitles() {
+        rule.setContent { DripApp() }
+
+        rule.onNodeWithTag("top_bar_notifications").performClick()
+        rule.onNodeWithTag("notification_history_sample-history-1").performClick()
+        rule.onNodeWithTag("notification_history_titles_sample-history-1").assertIsDisplayed()
+        rule.onNodeWithTag("notification_history_title_sample-history-1_0").assertIsDisplayed()
+        rule.onNodeWithTag("notification_history_title_sample-history-1_1").assertIsDisplayed()
+    }
+
+    @Test
     fun searchQuery_showsCompactResultsAndCanOpenDetail() {
         rule.setContent { DripApp() }
 

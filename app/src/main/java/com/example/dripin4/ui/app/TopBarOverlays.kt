@@ -7,10 +7,13 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +47,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +81,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
+import kotlinx.coroutines.delay
 
 enum class TopBarPanel {
     Search,
@@ -134,6 +141,18 @@ fun NotificationHistoryOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var expandedHistoryId by remember(history) { mutableStateOf<String?>(null) }
+    var titleSlotId by remember(history) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(expandedHistoryId, titleSlotId) {
+        if (expandedHistoryId == null && titleSlotId != null) {
+            delay(NotificationHistoryTitleExitMillis.toLong())
+            if (expandedHistoryId == null) {
+                titleSlotId = null
+            }
+        }
+    }
+
     TopBarOverlayContainer(
         visible = visible,
         onDismiss = onDismiss,
@@ -159,8 +178,58 @@ fun NotificationHistoryOverlay(
                 verticalArrangement = Arrangement.spacedBy(DripSpacing.Small),
                 contentPadding = PaddingValues(bottom = DripSpacing.XSmall),
             ) {
-                items(history, key = NotificationHistoryUi::id) { entry ->
-                    NotificationHistoryRow(entry = entry)
+                history.forEach { entry ->
+                    val expanded = expandedHistoryId == entry.id
+                    item(key = "history_${entry.id}") {
+                        NotificationHistoryRow(
+                            entry = entry,
+                            expanded = expanded,
+                            onToggle = {
+                                if (expanded) {
+                                    expandedHistoryId = null
+                                } else {
+                                    titleSlotId = entry.id
+                                    expandedHistoryId = entry.id
+                                }
+                            },
+                        )
+                    }
+                    if (titleSlotId == entry.id && entry.itemTitles.isNotEmpty()) {
+                        item(key = "titles_${entry.id}") {
+                            AnimatedVisibility(
+                                visible = expanded,
+                                enter = fadeIn(
+                                    animationSpec = tween(
+                                        durationMillis = NotificationHistoryTitleEnterMillis,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                ) + slideInVertically(
+                                    animationSpec = tween(
+                                        durationMillis = NotificationHistoryTitleEnterMillis,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                    initialOffsetY = { -it / 8 },
+                                ),
+                                exit = fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = NotificationHistoryTitleExitMillis,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                ) + slideOutVertically(
+                                    animationSpec = tween(
+                                        durationMillis = NotificationHistoryTitleExitMillis,
+                                        easing = FastOutSlowInEasing,
+                                    ),
+                                    targetOffsetY = { -it / 10 },
+                                ),
+                                modifier = Modifier.testTag("notification_history_titles_${entry.id}"),
+                            ) {
+                                NotificationHistoryTitleList(
+                                    entry = entry,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -359,10 +428,32 @@ private fun SearchResultRow(
 @Composable
 private fun NotificationHistoryRow(
     entry: NotificationHistoryUi,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val hasTitles = entry.itemTitles.isNotEmpty()
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+        label = "notification_history_chevron",
+    )
+
     GlassPanel(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (hasTitles) {
+                    Modifier.clickable(
+                        interactionSource = rowInteractionSource,
+                        indication = null,
+                        onClick = onToggle,
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .testTag("notification_history_${entry.id}"),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(DripSpacing.XSmall)) {
@@ -386,9 +477,116 @@ private fun NotificationHistoryRow(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = DripColors.Ink,
             )
+            if (hasTitles) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (expanded) "收起内容" else "查看内容",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = GlassPalette.TextTodaySubtitle,
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = GlassPalette.TextTodaySubtitle,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .graphicsLayer { rotationZ = chevronRotation },
+                    )
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun NotificationHistoryTitleList(
+    entry: NotificationHistoryUi,
+    modifier: Modifier = Modifier,
+) {
+    GlassPanel(
+        modifier = modifier.fillMaxWidth(),
+        cornerRadius = 18.dp,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            entry.itemTitles.take(MaxExpandedHistoryTitles).forEachIndexed { index, title ->
+                NotificationHistoryTitleRow(
+                    index = index,
+                    title = title,
+                    showTopDivider = index > 0,
+                    modifier = Modifier.testTag("notification_history_title_${entry.id}_$index"),
+                )
+            }
+            val hiddenCount = entry.itemTitles.size - MaxExpandedHistoryTitles
+            if (hiddenCount > 0) {
+                Text(
+                    text = "+$hiddenCount 条",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GlassPalette.TextTodaySubtitle,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationHistoryTitleRow(
+    index: Int,
+    title: String,
+    showTopDivider: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (showTopDivider) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(GlassPalette.TextTodaySubtitle.copy(alpha = 0.14f)),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(DripColors.PureWhite.copy(alpha = 0.52f))
+                    .border(0.5.dp, DripColors.PureWhite.copy(alpha = 0.72f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = (index + 1).toString(),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = GlassPalette.TextTodaySubtitle,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = DripColors.Ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private const val MaxExpandedHistoryTitles = 5
+private const val NotificationHistoryTitleEnterMillis = 150
+private const val NotificationHistoryTitleExitMillis = 110
 
 @Composable
 private fun OverlayEmptyState(

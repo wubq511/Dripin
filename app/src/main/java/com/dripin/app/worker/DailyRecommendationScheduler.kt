@@ -1,20 +1,17 @@
 package com.dripin.app.worker
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequest
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
+import android.content.Intent
 import java.time.Clock
-import java.time.Duration
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.concurrent.TimeUnit
 
 class DailyRecommendationScheduler(
     private val cancelExisting: () -> Unit,
-    private val enqueue: (OneTimeWorkRequest) -> Unit,
+    private val scheduleAt: (Long) -> Unit,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : SchedulerController {
     override fun scheduleNextRun(
@@ -35,13 +32,7 @@ class DailyRecommendationScheduler(
             nextRun = if (catchUpIfDue) now else nextRun.plusDays(1)
         }
 
-        val delay = Duration.between(now, nextRun)
-        val request = OneTimeWorkRequestBuilder<DailyRecommendationWorker>()
-            .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
-            .addTag(WorkTag)
-            .build()
-
-        enqueue(request)
+        scheduleAt(nextRun.toInstant().toEpochMilli())
     }
 
     override fun cancel() {
@@ -49,20 +40,33 @@ class DailyRecommendationScheduler(
     }
 
     companion object {
-        const val UniqueWorkName = "daily_recommendation_generation"
-        const val WorkTag = "daily_recommendation"
+        const val AlarmAction = "com.dripin.app.action.RUN_DAILY_RECOMMENDATION"
+        private const val AlarmRequestCode = 4001
 
         fun create(context: Context): DailyRecommendationScheduler {
-            val workManager = WorkManager.getInstance(context)
+            val appContext = context.applicationContext
+            val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             return DailyRecommendationScheduler(
-                cancelExisting = { workManager.cancelUniqueWork(UniqueWorkName) },
-                enqueue = { request ->
-                    workManager.enqueueUniqueWork(
-                        UniqueWorkName,
-                        ExistingWorkPolicy.REPLACE,
-                        request,
+                cancelExisting = { alarmManager.cancel(buildAlarmIntent(appContext)) },
+                scheduleAt = { triggerAtMillis ->
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        buildAlarmIntent(appContext),
                     )
                 },
+            )
+        }
+
+        private fun buildAlarmIntent(context: Context): PendingIntent {
+            val intent = Intent(context, DailyRecommendationAlarmReceiver::class.java).apply {
+                action = AlarmAction
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                AlarmRequestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         }
     }

@@ -3,6 +3,7 @@ package com.dripin.app.data.repository
 import com.dripin.app.core.model.RecommendationSortMode
 import com.dripin.app.core.model.NotificationDeliveryStatus
 import com.dripin.app.data.local.dao.DailyRecommendationDao
+import com.dripin.app.data.local.dao.NotificationDeliveryLogItemTitle
 import com.dripin.app.data.local.dao.SavedItemDao
 import com.dripin.app.data.local.entity.DailyRecommendationEntity
 import com.dripin.app.data.local.entity.DailyRecommendationItemEntity
@@ -12,7 +13,10 @@ import com.dripin.app.data.preferences.UserPreferences
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 data class NotificationDeliveryLog(
@@ -23,6 +27,7 @@ data class NotificationDeliveryLog(
     val status: NotificationDeliveryStatus,
     val issue: String?,
     val batchId: Long?,
+    val itemTitles: List<String> = emptyList(),
 )
 
 data class TodayBatch(
@@ -186,9 +191,22 @@ class RecommendationRepository(
         recommendationDao.insertNotificationDeliveryLog(log.toEntity())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeNotificationDeliveryLogs(limit: Int): Flow<List<NotificationDeliveryLog>> {
         return recommendationDao.observeNotificationDeliveryLogs(limit)
-            .map { logs -> logs.map(NotificationDeliveryLogEntity::toModel) }
+            .flatMapLatest { logs ->
+                if (logs.isEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    recommendationDao.observeNotificationDeliveryLogItemTitles(logs.map(NotificationDeliveryLogEntity::id))
+                        .map { titleRows ->
+                            val titlesByLogId = titleRows.toTitlesByLogId()
+                            logs.map { log ->
+                                log.toModel(itemTitles = titlesByLogId[log.id].orEmpty())
+                            }
+                        }
+                }
+            }
     }
 
     private suspend fun orderedCandidates(sortMode: RecommendationSortMode): List<SavedItemEntity> {
@@ -215,7 +233,9 @@ private fun NotificationDeliveryLog.toEntity(): NotificationDeliveryLogEntity = 
     batchId = batchId,
 )
 
-private fun NotificationDeliveryLogEntity.toModel(): NotificationDeliveryLog = NotificationDeliveryLog(
+private fun NotificationDeliveryLogEntity.toModel(
+    itemTitles: List<String>,
+): NotificationDeliveryLog = NotificationDeliveryLog(
     id = id,
     recommendedDate = recommendedDate,
     attemptedAt = attemptedAt,
@@ -223,4 +243,13 @@ private fun NotificationDeliveryLogEntity.toModel(): NotificationDeliveryLog = N
     status = status,
     issue = issue,
     batchId = batchId,
+    itemTitles = itemTitles,
 )
+
+private fun List<NotificationDeliveryLogItemTitle>.toTitlesByLogId(): Map<Long, List<String>> {
+    return groupBy(NotificationDeliveryLogItemTitle::logId)
+        .mapValues { (_, rows) ->
+            rows.sortedBy(NotificationDeliveryLogItemTitle::displayOrder)
+                .map(NotificationDeliveryLogItemTitle::title)
+        }
+}
